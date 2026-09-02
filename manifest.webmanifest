@@ -1,12 +1,1 @@
-{
-  "name": "pick. - PDFから部材を自動拾い",
-  "short_name": "pick.",
-  "start_url": "./",
-  "display": "standalone",
-  "background_color": "#f5f1e8",
-  "theme_color": "#f5f1e8",
-  "icons": [
-    {"src":"icon-192.png","sizes":"192x192","type":"image/png"},
-    {"src":"icon-512.png","sizes":"512x512","type":"image/png"}
-  ]
-}
+{"name":"pick. Body","short_name":"pick.","start_url":"./","display":"standalone","background_color":"#f5f1e8","theme_color":"#f5f1e8","icons":[{"src":"icon-192.png","sizes":"192x192","type":"image/png"},{"src":"icon-512.png","sizes":"512x512","type":"image/png"}],"description":"家具本体の線を先に検出し、その本体に対応する図面記載寸法だけを候補化する端末内PDF拾い出しアプリ"}

@@ -22,11 +22,11 @@
 </head>
 <body>
 <div class="app">
-<header class="top"><div><span class="brand">pick.</span><span class="ver">v0.3 DRAWING</span></div><div class="privacy">● 図面は端末内解析</div></header>
-<div class="lead"><b>図面に実際に記載された寸法を最優先。</b> 寸法線の根拠を確認できた数値だけ自動入力し、記載なし・判定が曖昧な箇所は空欄のまま「要確認」にします。</div>
+<header class="top"><div><span class="brand">pick.</span><span class="ver">v0.5 BODY</span></div><div class="privacy">● 図面は端末内解析</div></header>
+<div class="lead"><b>まず本体の線を読む。</b> 家具本体の水平・垂直線から矩形や本体領域を先に検出し、その本体の近くにある図面記載寸法だけを対応付けます。注記・名称などの文字は候補作成に使いません。</div>
 
 <section class="panel">
-  <div class="panelHead"><div><div class="panelTitle">図面から自動拾い</div><div class="small">文字＋寸法線を全ページ解析</div></div><div class="small" id="engineState">待機中</div></div>
+  <div class="panelHead"><div><div class="panelTitle">図面から自動拾い</div><div class="small">本体線 → 寸法の順で全ページ解析</div></div><div class="small" id="engineState">待機中</div></div>
   <div class="hero">
     <label class="drop" id="dropLabel">
       <input id="pdfInput" type="file" accept="application/pdf,.pdf">
@@ -36,20 +36,20 @@
     </label>
     <div class="progressWrap" id="progressWrap"><div class="progressLine"><div class="progressBar" id="progressBar"></div></div><div class="progressText"><span id="progressStatus">準備中…</span><span id="progressPct">0%</span></div></div>
     <div class="scanActions" id="scanActions"><button class="primary" id="rescanBtn">もう一度自動拾い</button><button class="secondary" id="stopBtn" style="display:none">中止</button></div>
-    <div class="privacyNote">PDF画像はアップロードしません。PDF.js / OCR辞書などの解析ライブラリは初回にインターネットから読み込みますが、図面画像そのものはブラウザ内で処理します。v0.3では「近い数字だから採用」はせず、寸法線の根拠が弱い数値は自動入力しません。</div>
+    <div class="privacyNote">PDF画像はアップロードしません。v0.4ではOCRを数字専用にし、日本語・英字・図面注記は候補作成に使用しません。寸法線の左右／上下に線が確認できた数字だけを寸法候補にします。</div>
   </div>
 </section>
 
 <section class="panel" id="candidatePanel">
-  <div class="panelHead"><div><div class="panelTitle">自動候補</div><div class="small">図面根拠のある寸法だけ自動入力</div></div><div class="small" id="candidateState">0件</div></div>
+  <div class="panelHead"><div><div class="panelTitle">寸法候補</div><div class="small">図面の文字は無視・寸法だけを抽出</div></div><div class="small" id="candidateState">0件</div></div>
   <div class="summary"><div class="sumBox"><div class="sumNum" id="sumAll">0</div><div class="sumLabel">候補</div></div><div class="sumBox"><div class="sumNum" id="sumChecked">0</div><div class="sumLabel">採用</div></div><div class="sumBox"><div class="sumNum" id="sumReview">0</div><div class="sumLabel">要確認</div></div></div>
-  <div class="candidateList" id="candidateList"><div class="empty">PDFを選ぶと、図面記載寸法を根拠に部材候補が並びます。寸法を特定できない箇所は空欄で要確認になります。</div></div>
+  <div class="candidateList" id="candidateList"><div class="empty">PDFを選ぶと、まず本体の線を検出し、その本体に対応する寸法だけを候補にします。図面中の注記や名称は使用しません。</div></div>
   <details class="manual"><summary>＋ 自動で拾えなかった部材を手動追加</summary><div class="manualGrid"><input id="mName" placeholder="部材名"><input id="mL" inputmode="decimal" placeholder="長さ"><input id="mW" inputmode="decimal" placeholder="幅"><input id="mQty" class="mq" inputmode="numeric" value="1"><button id="manualAdd">追加</button></div></details>
 </section>
 
 <section class="panel viewer" id="viewerPanel">
   <div class="panelHead"><div><div class="panelTitle">図面で確認</div><div class="small" id="viewHint">候補の位置を表示</div></div><button class="secondary" id="closeViewer">閉じる</button></div>
-  <div class="canvasStage" id="canvasStage"><div class="canvasInner" id="canvasInner"><canvas class="pdfCanvas" id="pdfCanvas"></canvas><div id="markPart" class="mark partMark" data-label="部材名"></div><div id="markL" class="mark lenMark" data-label="長さ寸法"></div><div id="markW" class="mark widMark" data-label="幅寸法"></div></div></div>
+  <div class="canvasStage" id="canvasStage"><div class="canvasInner" id="canvasInner"><canvas class="pdfCanvas" id="pdfCanvas"></canvas><div id="markPart" class="mark partMark" data-label="検出した本体" style="display:none"></div><div id="markL" class="mark lenMark" data-label="長さ寸法"></div><div id="markW" class="mark widMark" data-label="幅寸法"></div></div></div>
   <div class="pagebar"><button id="prevBtn">← 前</button><div class="pageText" id="pageText">– / –</div><button id="nextBtn">次 →</button></div>
 </section>
 </div>
@@ -63,7 +63,7 @@
 const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const E={input:$('#pdfInput'),drop:$('#dropLabel'),emptyUpload:$('#emptyUpload'),loadedUpload:$('#loadedUpload'),fileName:$('#fileName'),fileMeta:$('#fileMeta'),changeBtn:$('#changeBtn'),engine:$('#engineState'),progressWrap:$('#progressWrap'),bar:$('#progressBar'),progressStatus:$('#progressStatus'),pct:$('#progressPct'),scanActions:$('#scanActions'),rescan:$('#rescanBtn'),stop:$('#stopBtn'),candidateState:$('#candidateState'),list:$('#candidateList'),sumAll:$('#sumAll'),sumChecked:$('#sumChecked'),sumReview:$('#sumReview'),viewer:$('#viewerPanel'),canvas:$('#pdfCanvas'),inner:$('#canvasInner'),markPart:$('#markPart'),markL:$('#markL'),markW:$('#markW'),viewHint:$('#viewHint'),pageText:$('#pageText'),prev:$('#prevBtn'),next:$('#nextBtn'),closeViewer:$('#closeViewer'),mName:$('#mName'),mL:$('#mL'),mW:$('#mW'),mQty:$('#mQty'),manualAdd:$('#manualAdd'),clear:$('#clearBtn'),export:$('#exportBtn'),toast:$('#toast')};
 let pdfDoc=null,pdfBytes=null,currentFile=null,currentPage=1,scanAbort=false,ocrWorker=null,currentRender=null,candidates=[];
-const STORE='pick_candidates_v03';
+const STORE='pick_candidates_v05';
 try{const s=JSON.parse(localStorage.getItem(STORE)||'[]');if(Array.isArray(s))candidates=s}catch{}
 function toast(msg){E.toast.textContent=msg;E.toast.classList.add('show');setTimeout(()=>E.toast.classList.remove('show'),1800)}
 function save(){localStorage.setItem(STORE,JSON.stringify(candidates));renderCandidates()}
@@ -75,78 +75,153 @@ async function ensurePdfJs(){if(window.pdfjsLib)return true;await loadScript('ht
 async function ensureTesseract(){if(!window.Tesseract)await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js');return !!window.Tesseract}
 function parseTsv(tsv){const rows=[];const lines=String(tsv||'').split(/\r?\n/);if(lines.length<2)return rows;const head=lines[0].split('\t');for(let i=1;i<lines.length;i++){if(!lines[i].trim())continue;const c=lines[i].split('\t');const r={};head.forEach((h,j)=>r[h]=c[j]??'');if(r.level!=='5'||!String(r.text||'').trim())continue;rows.push({text:String(r.text).trim(),conf:Number(r.conf)||0,x:Number(r.left)||0,y:Number(r.top)||0,w:Number(r.width)||0,h:Number(r.height)||0,block:String(r.block_num||''),par:String(r.par_num||''),line:String(r.line_num||'')})}return rows}
 function wordsFromResult(data){if(data&&data.tsv){const a=parseTsv(data.tsv);if(a.length)return a}const src=(data&&data.words)||[];return src.map((w,i)=>({text:String(w.text||'').trim(),conf:Number(w.confidence??w.conf)||0,x:Number(w.bbox?.x0)||0,y:Number(w.bbox?.y0)||0,w:Math.max(0,Number(w.bbox?.x1||0)-Number(w.bbox?.x0||0)),h:Math.max(0,Number(w.bbox?.y1||0)-Number(w.bbox?.y0||0)),block:String(w.block_num??i),par:String(w.par_num??0),line:String(w.line_num??0)})).filter(w=>w.text)}
-const PART_RE=/(中天板|中地板|固定棚|可動棚|天板|地板|底板|側板|棚板|扉|前板|背板|幕板|束|受材|巾木|台輪|方立|仕切|フィラー|笠木|框|桟|腰板)/;
-const EXCLUDE_RE=/(平面図|正面図|断面図|詳細|家具記号|既存|仕上|材質|仕様|備考|注記|説明|納品|更新)/;
-function normalizedLineText(s){return String(s||'').replace(/[\s　]/g,'').replace(/[‐‑–—]/g,'-')}
-function numericToken(text){let s=String(text||'').trim().replace(/[，,]/g,'').replace(/[OoＯｏ]/g,'0').replace(/[Il|Ｉｌ]/g,'1').replace(/[^0-9.]/g,'');if((s.match(/\./g)||[]).length>1||!/^\d{2,5}(?:\.\d+)?$/.test(s))return null;const n=Number(s);if(!Number.isFinite(n)||n<20||n>6000)return null;return {text:s,value:n}}
-function unionBox(arr){return{x:Math.min(...arr.map(w=>w.x)),y:Math.min(...arr.map(w=>w.y)),x1:Math.max(...arr.map(w=>w.x+w.w)),y1:Math.max(...arr.map(w=>w.y+w.h))}}
+function numericToken(text){
+ let s=String(text||'').trim().replace(/[OoＯｏ]/g,'0').replace(/[Il|Ｉｌ]/g,'1').replace(/[^0-9.,]/g,'').replace(/[，,]/g,'');
+ if(/^\d{1,2}\.\d{3}$/.test(s))s=s.replace('.','');
+ if((s.match(/\./g)||[]).length>1||!/^\d{1,5}(?:\.\d+)?$/.test(s))return null;
+ const n=Number(s);if(!Number.isFinite(n)||n<10||n>6000)return null;return {text:s,value:n}
+}
 function makeInkProbe(canvas){
  const ctx=canvas.getContext('2d',{willReadFrequently:true});
  let img=null;try{img=ctx.getImageData(0,0,canvas.width,canvas.height)}catch{return null}
  const {data,width,height}=img;
- function dark(x,y){x=x|0;y=y|0;if(x<0||y<0||x>=width||y>=height)return 0;const i=(y*width+x)*4;const lum=.2126*data[i]+.7152*data[i+1]+.0722*data[i+2];return lum<150?1:0}
- function lineRatioH(y,x0,x1,skip0,skip1){x0=Math.max(0,x0|0);x1=Math.min(width-1,x1|0);if(x1<=x0)return 0;let d=0,n=0;for(let x=x0;x<=x1;x+=2){if(x>=skip0&&x<=skip1)continue;n++;d+=dark(x,y)}return n?d/n:0}
- function lineRatioV(x,y0,y1,skip0,skip1){y0=Math.max(0,y0|0);y1=Math.min(height-1,y1|0);if(y1<=y0)return 0;let d=0,n=0;for(let y=y0;y<=y1;y+=2){if(y>=skip0&&y<=skip1)continue;n++;d+=dark(x,y)}return n?d/n:0}
+ function dark(x,y){x=x|0;y=y|0;if(x<0||y<0||x>=width||y>=height)return 0;const i=(y*width+x)*4;const lum=.2126*data[i]+.7152*data[i+1]+.0722*data[i+2];return lum<185?1:0}
+ function ratioH(y,x0,x1){x0=Math.max(0,x0|0);x1=Math.min(width-1,x1|0);if(x1<=x0)return 0;let d=0,n=0;for(let x=x0;x<=x1;x+=2){n++;d+=dark(x,y)}return n?d/n:0}
+ function ratioV(x,y0,y1){y0=Math.max(0,y0|0);y1=Math.min(height-1,y1|0);if(y1<=y0)return 0;let d=0,n=0;for(let y=y0;y<=y1;y+=2){n++;d+=dark(x,y)}return n?d/n:0}
  function evidence(n,axis){
    const cx=n.x+n.w/2,cy=n.y+n.h/2;
    if(axis==='h'){
-     const span=Math.max(110,n.w*7), pad=Math.max(5,n.w*.18);let best=0;
-     const y0=Math.max(0,Math.round(n.y-n.h*1.6)),y1=Math.min(height-1,Math.round(n.y+n.h*2.6));
-     for(let y=y0;y<=y1;y+=2){const left=lineRatioH(y,cx-span,n.x-pad,-1,-2),right=lineRatioH(y,n.x+n.w+pad,cx+span,-1,-2);const both=Math.min(left,right);const one=Math.max(left,right)*.55;best=Math.max(best,both,one)}
-     return Math.min(1,best/0.48);
+     const span=Math.max(120,n.w*8),gap=Math.max(4,n.w*.14);let best=0,bestY=cy;
+     const y0=Math.max(0,Math.round(cy-n.h*2.6)),y1=Math.min(height-1,Math.round(cy+n.h*2.6));
+     for(let y=y0;y<=y1;y++){const left=ratioH(y,cx-span,n.x-gap),right=ratioH(y,n.x+n.w+gap,cx+span);const both=Math.min(left,right);if(both>best){best=both;bestY=y}}
+     return {score:Math.min(1,best/.30),line:bestY};
    }
-   const span=Math.max(110,n.h*7), pad=Math.max(5,n.h*.18);let best=0;
-   const x0=Math.max(0,Math.round(n.x-n.w*1.8)),x1=Math.min(width-1,Math.round(n.x+n.w*2.8));
-   for(let x=x0;x<=x1;x+=2){const top=lineRatioV(x,cy-span,n.y-pad,-1,-2),bot=lineRatioV(x,n.y+n.h+pad,cy+span,-1,-2);const both=Math.min(top,bot);const one=Math.max(top,bot)*.55;best=Math.max(best,both,one)}
-   return Math.min(1,best/0.48);
+   const span=Math.max(120,n.h*8),gap=Math.max(4,n.h*.14);let best=0,bestX=cx;
+   const x0=Math.max(0,Math.round(cx-n.w*2.6)),x1=Math.min(width-1,Math.round(cx+n.w*2.6));
+   for(let x=x0;x<=x1;x++){const top=ratioV(x,cy-span,n.y-gap),bot=ratioV(x,n.y+n.h+gap,cy+span);const both=Math.min(top,bot);if(both>best){best=both;bestX=x}}
+   return {score:Math.min(1,best/.30),line:bestX};
  }
- return {evidence};
+ return {evidence,dark,ratioH,ratioV,width,height};
+}
+function boxOf(n,width,height){return{x:n.x,y:n.y,x1:n.x+n.w,y1:n.y+n.h,pageWidth:width,pageHeight:height}}
+function dedupeDims(arr){
+ const out=[];for(const n of [...arr].sort((a,b)=>b.evidence-a.evidence||b.conf-a.conf)){
+   const hit=out.find(m=>m.axis===n.axis&&m.text===n.text&&Math.hypot(m.cx-n.cx,m.cy-n.cy)<Math.max(24,Math.min(n.w+n.h,m.w+m.h)*1.2));
+   if(!hit)out.push(n)
+ }return out
+}
+function collectDimensionNumbers(words,canvas){
+ const probe=canvas?makeInkProbe(canvas):null,dims=[];
+ for(const w of words){
+   const n=numericToken(w.text);if(!n||Number(w.conf)<50)continue;
+   const base={...n,x:w.x,y:w.y,w:w.w,h:w.h,conf:Number(w.conf)||0,cx:w.x+w.w/2,cy:w.y+w.h/2};
+   const he=probe?probe.evidence(base,'h'):{score:(w.w>w.h*1.25?.72:.1)};
+   const ve=probe?probe.evidence(base,'v'):{score:(w.h>w.w*1.25?.72:.1)};
+   const rotated=String(w.block||'').startsWith('r');let axis='',ev=0;
+   if(rotated){if(ve.score<.48)continue;axis='v';ev=ve.score}
+   else if(base.w>=base.h*1.25){if(he.score<.48)continue;axis='h';ev=he.score}
+   else if(base.h>=base.w*1.25){if(ve.score<.48)continue;axis='v';ev=ve.score}
+   else{const best=Math.max(he.score,ve.score);if(best<.55)continue;if(he.score>=.55&&ve.score>=.55&&Math.abs(he.score-ve.score)<.14)continue;axis=he.score>=ve.score?'h':'v';ev=axis==='h'?he.score:ve.score}
+   dims.push({...base,axis,evidence:ev,dimH:he.score,dimV:ve.score})
+ }
+ return dedupeDims(dims)
+}
+function detectBodyShapes(canvas){
+ const probe=makeInkProbe(canvas);if(!probe)return[];
+ const W=canvas.width,H=canvas.height,step=Math.max(2,Math.round(W/900));
+ const minHLen=Math.max(40,Math.round(W*.022)),minVLen=Math.max(28,Math.round(H*.020));
+ function scanRuns(getVal,total,minLen,maxGap=3){
+   const out=[];let start=-1,last=-1,gap=0;
+   for(let i=0;i<total;i+=step){const on=getVal(i);if(on){if(start<0)start=i;last=i;gap=0}else if(start>=0){gap+=step;if(gap>maxGap*step){if(last-start>=minLen)out.push([start,last]);start=last=-1;gap=0}}}
+   if(start>=0&&last-start>=minLen)out.push([start,last]);return out
+ }
+ const hs=[];for(let y=step;y<H-step;y+=step){
+   const runs=scanRuns(x=>probe.dark(x,y-step)||probe.dark(x,y)||probe.dark(x,y+step),W,minHLen,4);
+   for(const [x0,x1] of runs)hs.push({x0,x1,y,n:1})
+ }
+ const vs=[];for(let x=step;x<W-step;x+=step){
+   const runs=scanRuns(y=>probe.dark(x-step,y)||probe.dark(x,y)||probe.dark(x+step,y),H,minVLen,4);
+   for(const [y0,y1] of runs)vs.push({y0,y1,x,n:1})
+ }
+ function merge(lines,axis){
+   const out=[];const sorted=[...lines].sort((a,b)=>(axis==='h'?a.y-b.y:a.x-b.x));
+   for(const s of sorted){let hit=null;for(let i=out.length-1;i>=0&&i>out.length-90;i--){const o=out[i];const cd=Math.abs((axis==='h'?s.y:s.x)-(axis==='h'?o.y:o.x));if(cd>step*3.2)continue;const a0=axis==='h'?s.x0:s.y0,a1=axis==='h'?s.x1:s.y1,b0=axis==='h'?o.x0:o.y0,b1=axis==='h'?o.x1:o.y1;const ov=Math.max(0,Math.min(a1,b1)-Math.max(a0,b0)),mn=Math.min(a1-a0,b1-b0);if(mn>0&&ov/mn>.55){hit=o;break}}
+     if(hit){if(axis==='h'){hit.x0=Math.min(hit.x0,s.x0);hit.x1=Math.max(hit.x1,s.x1);hit.y=(hit.y*hit.n+s.y)/(hit.n+1)}else{hit.y0=Math.min(hit.y0,s.y0);hit.y1=Math.max(hit.y1,s.y1);hit.x=(hit.x*hit.n+s.x)/(hit.n+1)}hit.n++}else out.push({...s})
+   }return out
+ }
+ const Hs=merge(hs,'h').filter(l=>l.x1-l.x0>=minHLen),Vs=merge(vs,'v').filter(l=>l.y1-l.y0>=minVLen);
+ const minRW=Math.max(90,W*.050),minRH=Math.max(30,H*.025),rects=[];
+ const hsorted=[...Hs].sort((a,b)=>a.y-b.y);
+ for(let i=0;i<hsorted.length;i++)for(let j=i+1;j<hsorted.length;j++){
+   const a=hsorted[i],b=hsorted[j],rh=b.y-a.y;if(rh<minRH)continue;if(rh>H*.50)break;
+   const common0=Math.max(a.x0,b.x0),common1=Math.min(a.x1,b.x1);if(common1-common0<minRW)continue;
+   const tol=Math.max(step*5,Math.min(18,rh*.08));
+   const crossing=Vs.filter(v=>v.x>=common0-tol&&v.x<=common1+tol&&v.y0<=a.y+tol&&v.y1>=b.y-tol);
+   if(crossing.length<2)continue;
+   crossing.sort((p,q)=>p.x-q.x);
+   for(let l=0;l<crossing.length;l++)for(let r=l+1;r<crossing.length;r++){
+     const L=crossing[l],R=crossing[r],rw=R.x-L.x;if(rw<minRW)continue;
+     const area=rw*rh,aspect=rw/rh;if(area>W*H*.25||aspect<.15||aspect>14||a.y>H*.88)continue;
+     if(L.x<common0-tol||R.x>common1+tol)continue;
+     const margin=Math.min(L.x,W-R.x,a.y,H-b.y);if(margin<Math.min(W,H)*.012&&area>W*H*.04)continue;
+     const edgeScore=Math.min(1,a.n/2)+Math.min(1,b.n/2)+Math.min(1,L.n/2)+Math.min(1,R.n/2);
+     const interScore=[a,b].reduce((s,hline)=>s+Vs.filter(v=>v.x>=L.x-tol&&v.x<=R.x+tol&&v.y0<=hline.y+tol&&v.y1>=hline.y-tol).length,0);
+     rects.push({x:L.x,y:a.y,x1:R.x,y1:b.y,score:edgeScore+Math.min(2,interScore*.18),kind:'rect'})
+   }
+ }
+ const ded=[];for(const r of rects.sort((a,b)=>b.score-a.score||((b.x1-b.x)*(b.y1-b.y)-(a.x1-a.x)*(a.y1-a.y)))){
+   const ra=(r.x1-r.x)*(r.y1-r.y);const dup=ded.some(o=>{const oa=(o.x1-o.x)*(o.y1-o.y),ix=Math.max(0,Math.min(r.x1,o.x1)-Math.max(r.x,o.x)),iy=Math.max(0,Math.min(r.y1,o.y1)-Math.max(r.y,o.y)),inter=ix*iy,union=ra+oa-inter,iou=union?inter/union:0,center=Math.hypot((r.x+r.x1-o.x-o.x1)/2,(r.y+r.y1-o.y-o.y1)/2),sizeDiff=Math.max(Math.abs((r.x1-r.x)-(o.x1-o.x))/Math.max(r.x1-r.x,o.x1-o.x),Math.abs((r.y1-r.y)-(o.y1-o.y))/Math.max(r.y1-r.y,o.y1-o.y));return iou>.70||(center<Math.max(18,step*8)&&sizeDiff<.22)});if(!dup)ded.push(r);if(ded.length>=30)break
+ }
+ // 矩形が少ないページでは、交点が多い長線群を「本体領域」として補助候補にする。
+ {
+   const bodyH=Hs.filter(h=>Vs.filter(v=>v.x>=h.x0-step*3&&v.x<=h.x1+step*3&&v.y0<=h.y+step*4&&v.y1>=h.y-step*4).length>=2);
+   const used=new Set();for(let i=0;i<bodyH.length;i++){if(used.has(i))continue;const group=[bodyH[i]];used.add(i);let changed=true;while(changed){changed=false;for(let k=0;k<bodyH.length;k++){if(used.has(k))continue;const c=bodyH[k];const gx0=Math.min(...group.map(g=>g.x0)),gx1=Math.max(...group.map(g=>g.x1)),gy0=Math.min(...group.map(g=>g.y)),gy1=Math.max(...group.map(g=>g.y));if(c.x1>=gx0-W*.03&&c.x0<=gx1+W*.03&&c.y>=gy0-H*.08&&c.y<=gy1+H*.08){group.push(c);used.add(k);changed=true}}}
+     if(group.length<3)continue;const x0=Math.min(...group.map(g=>g.x0)),x1=Math.max(...group.map(g=>g.x1)),y0=Math.min(...group.map(g=>g.y)),y1=Math.max(...group.map(g=>g.y));const nearV=Vs.filter(v=>v.x>=x0-W*.03&&v.x<=x1+W*.03&&v.y1>=y0-H*.03&&v.y0<=y1+H*.03);if(nearV.length<2)continue;const bx0=Math.min(x0,...nearV.map(v=>v.x)),bx1=Math.max(x1,...nearV.map(v=>v.x)),by0=Math.min(y0,...nearV.map(v=>v.y0)),by1=Math.max(y1,...nearV.map(v=>v.y1));if((bx1-bx0)*(by1-by0)>W*H*.28||by0>H*.88)continue;ded.push({x:bx0,y:by0,x1:bx1,y1:by1,score:2.2+group.length*.08,kind:'region'})
+   }
+ }
+ const regions=ded.filter(r=>r.kind==='region');const rectsFinal=ded.filter(r=>r.kind==='rect'&&!regions.some(g=>{const ix=Math.max(0,Math.min(r.x1,g.x1)-Math.max(r.x,g.x)),iy=Math.max(0,Math.min(r.y1,g.y1)-Math.max(r.y,g.y)),inter=ix*iy,ra=(r.x1-r.x)*(r.y1-r.y);return ra>0&&inter/ra>.72}));
+ const final=[...regions,...rectsFinal].sort((a,b)=>a.y-b.y||a.x-b.x).slice(0,24);return final.map(r=>({...r,pageWidth:W,pageHeight:H,lineStats:{h:Hs.length,v:Vs.length}}))
+}
+function bodyDistance(dim,body,axis,width,height){
+ const bw=body.x1-body.x,bh=body.y1-body.y,cx=(body.x+body.x1)/2,cy=(body.y+body.y1)/2;
+ if(axis==='h'){
+   const xInside=dim.cx>=body.x-bw*.22&&dim.cx<=body.x1+bw*.22;if(!xInside)return 9;
+   const dy=Math.min(Math.abs(dim.cy-body.y),Math.abs(dim.cy-body.y1),Math.abs(dim.cy-cy)*1.5)/Math.max(60,bh*.9);
+   const dx=Math.abs(dim.cx-cx)/Math.max(80,bw*.85);return dy*.72+dx*.28+(1-dim.evidence)*.32
+ }
+ const yInside=dim.cy>=body.y-bh*.28&&dim.cy<=body.y1+bh*.28;if(!yInside)return 9;
+ const dx=Math.min(Math.abs(dim.cx-body.x),Math.abs(dim.cx-body.x1),Math.abs(dim.cx-cx)*1.5)/Math.max(60,bw*.9);
+ const dy=Math.abs(dim.cy-cy)/Math.max(80,bh*.85);return dx*.72+dy*.28+(1-dim.evidence)*.32
 }
 function extractCandidatesFromWords(words,page,width,height,canvas=null){
- const groups=new Map();for(const w of words){const key=`${w.block}|${w.par}|${w.line}`;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(w)}
- function cleanPartName(text){
-   const t=normalizedLineText(text);const m=t.match(/(中央|左|右|上|下)?(中天板|中地板|固定棚|可動棚|天板|地板|底板|側板|棚板|扉|前板|背板|幕板|束|受材|巾木|台輪|方立|仕切|フィラー|笠木|框|桟|腰板)/);if(!m)return'';
-   let name=(m[1]||'')+m[2];const tail=t.slice((m.index||0)+m[0].length);const n=tail.match(/^[-‐ー]?(\d{1,2})(?![\d.])/);if(n)name+=`-${n[1]}`;else{const a=tail.match(/^([A-DＡ-Ｄ])/);if(a)name+=a[1]}return name
+ if(!canvas)return[];
+ const bodies=detectBodyShapes(canvas),dims=collectDimensionNumbers(words,canvas),hs=dims.filter(n=>n.axis==='h'),vs=dims.filter(n=>n.axis==='v');
+ const out=[];let seq=1;
+ for(const body of bodies){
+   const hr=hs.map(d=>({d,score:bodyDistance(d,body,'h',width,height)})).filter(x=>x.score<1.05).sort((a,b)=>a.score-b.score);
+   const vr=vs.map(d=>({d,score:bodyDistance(d,body,'v',width,height)})).filter(x=>x.score<1.05).sort((a,b)=>a.score-b.score);
+   if(!hr.length&&!vr.length)continue;
+   const hAmb=hr[1]&&hr[1].score-hr[0].score<.07,vAmb=vr[1]&&vr[1].score-vr[0].score<.07;
+   const h=hr[0]&&!hAmb?hr[0].d:null,v=vr[0]&&!vAmb?vr[0].d:null;
+   let reason='本体線を検出。';const missing=[];if(!h)missing.push(hAmb?'長さ候補が複数':'長さ寸法なし');if(!v)missing.push(vAmb?'幅候補が複数':'幅寸法なし');reason+=missing.length?` 要確認：${missing.join('／')}。`:' 対応する長さ・幅寸法を図面上で確認。';
+   const geometry=Math.min(1,body.score/4.2),dimScore=((h?h.evidence:0)+(v?v.evidence:0))/2;let confidence=Math.round(geometry*50+dimScore*34+(h&&v?14:0));if(hAmb||vAmb)confidence=Math.min(confidence,62);if(!h||!v)confidence=Math.min(confidence,58);
+   out.push({id:uid(),name:`本体 ${seq++}`,l:h?h.text:'',w:v?v.text:'',qty:1,page,confidence:Math.max(24,Math.min(96,confidence)),checked:!!(h&&v&&!hAmb&&!vAmb&&confidence>=78),box:{...body},sources:{body:{...body},length:h?boxOf(h,width,height):null,width:v?boxOf(v,width,height):null},reason,evidence:{body:true,length:!!h,width:!!v},sourceMode:'body-first',bodyKind:body.kind})
  }
- const labels=[];for(const ws0 of groups.values()){const ws=[...ws0].sort((a,b)=>a.x-b.x);const text=normalizedLineText(ws.map(w=>w.text).join(''));if(!PART_RE.test(text)||EXCLUDE_RE.test(text)||text.length>18)continue;const name=cleanPartName(text);if(!name)continue;const box=unionBox(ws);labels.push({text:name,box,conf:ws.reduce((a,w)=>a+w.conf,0)/ws.length})}
- const probe=canvas?makeInkProbe(canvas):null;
- const nums=[];for(const w of words){const n=numericToken(w.text);if(!n)continue;const orient=w.h>w.w*1.22?'v':w.w>w.h*1.22?'h':'u';const base={...n,x:w.x,y:w.y,w:w.w,h:w.h,conf:w.conf,orient,cx:w.x+w.w/2,cy:w.y+w.h/2};base.dimH=probe?probe.evidence(base,'h'):(orient==='h'?.72:.18);base.dimV=probe?probe.evidence(base,'v'):(orient==='v'?.72:.18);nums.push(base)}
- function boxOf(n){return{x:n.x,y:n.y,x1:n.x+n.w,y1:n.y+n.h,pageWidth:width,pageHeight:height}}
- function rankDim(label,axis){
-   const lx=(label.box.x+label.box.x1)/2,ly=(label.box.y+label.box.y1)/2;const evKey=axis==='h'?'dimH':'dimV';
-   const pool=nums.filter(n=>n.conf>=55&&n[evKey]>=.42).filter(n=>axis==='h'?(Math.abs(n.cx-lx)<width*.30&&Math.abs(n.cy-ly)<height*.38):(Math.abs(n.cy-ly)<height*.28&&Math.abs(n.cx-lx)<width*.30));
-   return pool.map(n=>{const dx=Math.abs(n.cx-lx)/width,dy=Math.abs(n.cy-ly)/height;let score=axis==='h'?(dx*1.35+dy*2.35):(dx*2.35+dy*1.35);score+=(1-n[evKey])*.65;score+=(1-Math.min(100,n.conf)/100)*.25;return{n,score,evidence:n[evKey]}}).sort((a,b)=>a.score-b.score)
- }
- function pickReliable(ranked){if(!ranked.length)return null;const a=ranked[0],b=ranked[1];if(a.score>.95)return null;if(a.evidence<.48)return null;if(b&&Math.abs(b.score-a.score)<.075)return {ambiguous:true,best:a};return {ambiguous:false,best:a}}
- const out=[];for(const lab of labels){
-   const hPick=pickReliable(rankDim(lab,'h')),vPick=pickReliable(rankDim(lab,'v'));
-   const H=hPick&&!hPick.ambiguous?hPick.best.n:null,V=vPick&&!vPick.ambiguous?vPick.best.n:null;
-   // 長さ=水平寸法、幅=垂直寸法。片方が見つからない場合に別方向の数字で補完しない。
-   const l=H?H.text:'', w=V?V.text:'';
-   const missing=[];if(!l)missing.push(hPick?.ambiguous?'長さ候補が複数':'長さ寸法を特定できない');if(!w)missing.push(vPick?.ambiguous?'幅候補が複数':'幅寸法を特定できない');
-   const labelBox={x:lab.box.x,y:lab.box.y,x1:lab.box.x1,y1:lab.box.y1,pageWidth:width,pageHeight:height};
-   const sources={label:labelBox,length:H?boxOf(H):null,width:V?boxOf(V):null};
-   let confidence=Math.round((lab.conf*.30)+(H?(H.conf*.18+H.dimH*24):0)+(V?(V.conf*.18+V.dimV*24):0));
-   if(!l||!w)confidence=Math.min(confidence,58);confidence=Math.max(18,Math.min(96,confidence));
-   const reason=missing.length?`要確認：${missing.join('・')}。推測値は入れていません。`:'図面上の寸法線と数値を確認して採用';
-   out.push({id:uid(),name:lab.text,l,w,qty:1,page,confidence,checked:!!(l&&w&&confidence>=72),box:labelBox,sources,reason,evidence:{length:!!H,width:!!V}})
- }
- // 同名・同寸法だけ統合。空欄や別寸法は勝手にまとめない。
- const merged=[];for(const c of out){const hit=c.l&&c.w?merged.find(m=>m.name===c.name&&m.l===c.l&&m.w===c.w&&m.page===c.page):null;if(hit){hit.qty+=1;hit.confidence=Math.max(hit.confidence,c.confidence);hit.checked=hit.checked&&c.checked}else merged.push(c)}return merged
+ return out
 }
 function confidenceClass(c){return c>=72?'high':c>=50?'mid':'low'}
-function renderCandidates(){const selected=candidates.filter(c=>c.checked).length,review=candidates.filter(c=>c.confidence<72||!c.l||!c.w).length;E.sumAll.textContent=candidates.length;E.sumChecked.textContent=selected;E.sumReview.textContent=review;E.candidateState.textContent=`${candidates.length}件`;if(!candidates.length){E.list.innerHTML='<div class="empty">PDFを選ぶと、図面記載寸法を根拠に部材候補が並びます。寸法を特定できない箇所は空欄で要確認になります。</div>';return}E.list.innerHTML=candidates.map(c=>{const cc=confidenceClass(c.confidence);const evL=c.evidence?.length||!!c.sources?.length,evW=c.evidence?.width||!!c.sources?.width;return`<div class="cand ${cc==='low'?'low':''}" data-id="${c.id}"><div class="candTop"><input class="check" type="checkbox" data-k="checked" ${c.checked?'checked':''}><span class="pageChip">P.${c.page||'–'}</span><span class="confidence ${cc}">${c.confidence}% ${cc==='high'?'図面一致':cc==='mid'?'確認':'要確認'}</span></div><div class="fields"><div class="field"><label>部材名</label><input data-k="name" value="${esc(c.name)}"></div><div class="field"><label>長さ</label><input data-k="l" inputmode="decimal" placeholder="要確認" value="${esc(c.l)}"></div><div class="field"><label>幅</label><input data-k="w" inputmode="decimal" placeholder="要確認" value="${esc(c.w)}"></div><div class="field qty"><label>枚数</label><input data-k="qty" inputmode="numeric" value="${esc(c.qty)}"></div></div><div class="candFoot"><div class="reason">${esc(c.reason)}<div class="evidence"><span class="ev ${evL?'ok':'miss'}">長さ：${evL?'図面記載':'要確認'}</span><span class="ev ${evW?'ok':'miss'}">幅：${evW?'図面記載':'要確認'}</span></div></div><button class="viewBtn" data-view>図面で確認</button><button class="delBtn" data-del>削除</button></div></div>`}).join('')}
-E.list.addEventListener('input',e=>{const card=e.target.closest('[data-id]');const k=e.target.dataset.k;if(!card||!k)return;const c=candidates.find(x=>x.id===card.dataset.id);if(!c)return;if(k==='checked')c.checked=e.target.checked;else if(k==='qty')c.qty=Math.max(1,parseInt(cleanNum(e.target.value)||'1',10));else c[k]=e.target.value;localStorage.setItem(STORE,JSON.stringify(candidates));renderSummaryOnly()});
+function renderCandidates(){const selected=candidates.filter(c=>c.checked).length,review=candidates.filter(c=>c.confidence<78||!c.l||!c.w).length;E.sumAll.textContent=candidates.length;E.sumChecked.textContent=selected;E.sumReview.textContent=review;E.candidateState.textContent=`${candidates.length}件`;if(!candidates.length){E.list.innerHTML='<div class="empty">本体線を検出できた場所だけ候補になります。本体線を見つけても寸法を対応できない場合は「要確認」にします。</div>';return}E.list.innerHTML=candidates.map((c,i)=>{const cc=confidenceClass(c.confidence),evB=c.evidence?.body||!!c.sources?.body,evL=c.evidence?.length||!!c.sources?.length,evW=c.evidence?.width||!!c.sources?.width;return`<div class="cand ${cc==='low'?'low':''}" data-id="${c.id}"><div class="candTop"><input class="check" type="checkbox" data-k="checked" ${c.checked?'checked':''}><span class="pageChip">P.${c.page||'–'}・本体${i+1}</span><span class="confidence ${cc}">${c.confidence}% ${cc==='high'?'本体＋寸法':cc==='mid'?'確認':'要確認'}</span></div><div class="fields"><div class="field"><label>部材名（仮名）</label><input data-k="name" value="${esc(c.name)}"></div><div class="field"><label>長さ</label><input data-k="l" inputmode="decimal" placeholder="要確認" value="${esc(c.l)}"></div><div class="field"><label>幅</label><input data-k="w" inputmode="decimal" placeholder="要確認" value="${esc(c.w)}"></div><div class="field qty"><label>枚数</label><input data-k="qty" inputmode="numeric" value="${esc(c.qty)}"></div></div><div class="candFoot"><div class="reason">${esc(c.reason)}<div class="evidence"><span class="ev ${evB?'ok':'miss'}">本体線：${evB?'検出':'なし'}</span><span class="ev ${evL?'ok':'miss'}">長さ：${evL?'図面記載':'要確認'}</span><span class="ev ${evW?'ok':'miss'}">幅：${evW?'図面記載':'要確認'}</span><span class="ev ok">文字：不使用</span></div></div><button class="viewBtn" data-view>図面で確認</button><button class="delBtn" data-del>削除</button></div></div>`}).join('')}
+E.list.addEventListener('input' ,e=>{const card=e.target.closest('[data-id]');const k=e.target.dataset.k;if(!card||!k)return;const c=candidates.find(x=>x.id===card.dataset.id);if(!c)return;if(k==='checked')c.checked=e.target.checked;else if(k==='qty')c.qty=Math.max(1,parseInt(cleanNum(e.target.value)||'1',10));else c[k]=e.target.value;localStorage.setItem(STORE,JSON.stringify(candidates));renderSummaryOnly()});
 E.list.addEventListener('change',e=>{if(e.target.dataset.k==='checked'){const c=candidates.find(x=>x.id===e.target.closest('[data-id]')?.dataset.id);if(c)c.checked=e.target.checked;localStorage.setItem(STORE,JSON.stringify(candidates));renderSummaryOnly()}})
 E.list.addEventListener('click',e=>{const card=e.target.closest('[data-id]');if(!card)return;const idx=candidates.findIndex(x=>x.id===card.dataset.id);if(idx<0)return;if(e.target.closest('[data-del]')){candidates.splice(idx,1);save();return}if(e.target.closest('[data-view]'))showCandidate(candidates[idx])});
-function renderSummaryOnly(){E.sumAll.textContent=candidates.length;E.sumChecked.textContent=candidates.filter(c=>c.checked).length;E.sumReview.textContent=candidates.filter(c=>c.confidence<72||!c.l||!c.w).length}
+function renderSummaryOnly(){E.sumAll.textContent=candidates.length;E.sumChecked.textContent=candidates.filter(c=>c.checked).length;E.sumReview.textContent=candidates.filter(c=>c.confidence<78||!c.l||!c.w).length}
 async function openPdf(file){currentFile=file;E.fileName.textContent=file.name;E.fileMeta.textContent=`${(file.size/1024/1024).toFixed(1)} MB`;E.emptyUpload.style.display='none';E.loadedUpload.style.display='block';E.changeBtn.style.display='block';E.drop.classList.add('hasFile');E.progressWrap.style.display='block';E.scanActions.style.display='flex';E.engine.textContent='準備中';pdfBytes=await file.arrayBuffer();try{await ensurePdfJs();pdfDoc=await window.pdfjsLib.getDocument({data:pdfBytes.slice(0)}).promise;E.fileMeta.textContent+=`・${pdfDoc.numPages}ページ`;currentPage=1;await renderPage(currentPage);await autoScan()}catch(err){console.error(err);E.engine.textContent='解析ライブラリを読めません';setProgress(0,'初回の自動拾いにはインターネット接続が必要です');toast('解析ライブラリを読み込めませんでした')}}
 E.input.addEventListener('change',e=>{const f=e.target.files?.[0];if(f)openPdf(f)});E.changeBtn.addEventListener('click',e=>{e.preventDefault();E.input.click()});E.rescan.addEventListener('click',()=>{if(pdfDoc)autoScan()});E.stop.addEventListener('click',()=>{scanAbort=true;E.stop.disabled=true;E.progressStatus.textContent='中止しています…'});
 function setProgress(p,text){const x=Math.max(0,Math.min(100,p));E.bar.style.width=x+'%';E.pct.textContent=Math.round(x)+'%';if(text)E.progressStatus.textContent=text}
 async function createOcrWorker(){
  await ensureTesseract();
  if(ocrWorker)return ocrWorker;
- ocrWorker=await window.Tesseract.createWorker('jpn+eng',1,{
+ ocrWorker=await window.Tesseract.createWorker('eng',1,{
    logger:m=>{
      if(m.status==='recognizing text'&&window.__scanPage){
        const total=pdfDoc?.numPages||1;
@@ -156,33 +231,40 @@ async function createOcrWorker(){
      }
    }
  });
- await ocrWorker.setParameters({tessedit_pageseg_mode:'12',preserve_interword_spaces:'1'});
+ await ocrWorker.setParameters({tessedit_pageseg_mode:'11',tessedit_char_whitelist:'0123456789.,',preserve_interword_spaces:'1'});
  return ocrWorker;
 }
-async function renderPageToCanvas(pageNo,targetWidth=1700){const page=await pdfDoc.getPage(pageNo);const base=page.getViewport({scale:1});const scale=Math.min(3,targetWidth/base.width);const vp=page.getViewport({scale});const c=document.createElement('canvas');c.width=Math.round(vp.width);c.height=Math.round(vp.height);await page.render({canvasContext:c.getContext('2d',{alpha:false}),viewport:vp}).promise;return c}
-async function autoScan(){if(!pdfDoc)return;scanAbort=false;E.stop.style.display='inline-block';E.stop.disabled=false;E.rescan.disabled=true;E.engine.textContent='自動拾い中';candidates=[];renderCandidates();setProgress(0,'OCRを準備中…');try{const worker=await createOcrWorker();for(let p=1;p<=pdfDoc.numPages;p++){if(scanAbort)break;window.__scanPage=p;setProgress((p-1)/pdfDoc.numPages*100,`P.${p} を画像化中…`);const canvas=await renderPageToCanvas(p,1700);const result=await worker.recognize(canvas);const words=wordsFromResult(result.data);const found=extractCandidatesFromWords(words,p,canvas.width,canvas.height,canvas);candidates.push(...found);renderCandidates();localStorage.setItem(STORE,JSON.stringify(candidates));setProgress(p/pdfDoc.numPages*100,`P.${p} 完了・${found.length}件候補`);await new Promise(r=>setTimeout(r,20))}if(scanAbort){E.engine.textContent='中止';E.progressStatus.textContent=`中止しました・${candidates.length}件まで取得`}else{E.engine.textContent='完了';setProgress(100,`完了・${candidates.length}件の候補を抽出`);toast(`${candidates.length}件の候補を拾いました`)}}catch(err){console.error(err);E.engine.textContent='OCRエラー';E.progressStatus.textContent='OCRを起動できませんでした。ネット接続後に「もう一度自動拾い」を押してください。';toast('OCRを起動できませんでした')}finally{window.__scanPage=null;E.stop.style.display='none';E.rescan.disabled=false}}
+async function renderPageToCanvas(pageNo,targetWidth=2400){const page=await pdfDoc.getPage(pageNo);const base=page.getViewport({scale:1});const scale=Math.min(3,targetWidth/base.width);const vp=page.getViewport({scale});const c=document.createElement('canvas');c.width=Math.round(vp.width);c.height=Math.round(vp.height);await page.render({canvasContext:c.getContext('2d',{alpha:false}),viewport:vp}).promise;return c}
+function rotateCanvasCW(src){const c=document.createElement('canvas');c.width=src.height;c.height=src.width;const x=c.getContext('2d',{alpha:false});x.translate(c.width,0);x.rotate(Math.PI/2);x.drawImage(src,0,0);return c}
+function mapRotatedWordsToOriginal(words,origW,origH){return words.map(w=>({...w,x:w.y,y:origH-(w.x+w.w),w:w.h,h:w.w,block:'r'+w.block,par:'r'+w.par,line:'r'+w.line})).filter(w=>w.x>=0&&w.y>=0&&w.x+w.w<=origW+2&&w.y+w.h<=origH+2)}
+async function autoScan(){if(!pdfDoc)return;scanAbort=false;E.stop.style.display='inline-block';E.stop.disabled=false;E.rescan.disabled=true;E.engine.textContent='自動拾い中';candidates=[];renderCandidates();setProgress(0,'OCRを準備中…');try{const worker=await createOcrWorker();for(let p=1;p<=pdfDoc.numPages;p++){if(scanAbort)break;window.__scanPage=p;setProgress((p-1)/pdfDoc.numPages*100,`P.${p} 本体線を検出中…`);const canvas=await renderPageToCanvas(p,2400);const bodiesNow=detectBodyShapes(canvas);setProgress((p-.72)/pdfDoc.numPages*100,`P.${p} 本体 ${bodiesNow.length}箇所・寸法OCR中…`);const result=await worker.recognize(canvas);let words=wordsFromResult(result.data);if(!scanAbort){setProgress((p-.45)/pdfDoc.numPages*100,`P.${p} 縦寸法を確認中…`);const rotated=rotateCanvasCW(canvas);const rResult=await worker.recognize(rotated);words=words.concat(mapRotatedWordsToOriginal(wordsFromResult(rResult.data),canvas.width,canvas.height))}const found=extractCandidatesFromWords(words,p,canvas.width,canvas.height,canvas);candidates.push(...found);renderCandidates();localStorage.setItem(STORE,JSON.stringify(candidates));setProgress(p/pdfDoc.numPages*100,`P.${p} 完了・${found.length}件候補`);await new Promise(r=>setTimeout(r,20))}if(scanAbort){E.engine.textContent='中止';E.progressStatus.textContent=`中止しました・${candidates.length}件まで取得`}else{E.engine.textContent='完了';setProgress(100,`完了・${candidates.length}件の候補を抽出`);toast(`${candidates.length}件の候補を拾いました`)}}catch(err){console.error(err);E.engine.textContent='OCRエラー';E.progressStatus.textContent='OCRを起動できませんでした。ネット接続後に「もう一度自動拾い」を押してください。';toast('OCRを起動できませんでした')}finally{window.__scanPage=null;E.stop.style.display='none';E.rescan.disabled=false}}
 async function renderPage(p){if(!pdfDoc)return;currentPage=Math.max(1,Math.min(pdfDoc.numPages,p));if(currentRender)try{currentRender.cancel()}catch{};const page=await pdfDoc.getPage(currentPage);const base=page.getViewport({scale:1});const target=Math.min(1900,Math.max(1100,innerWidth*3));const vp=page.getViewport({scale:target/base.width});E.canvas.width=Math.round(vp.width);E.canvas.height=Math.round(vp.height);E.canvas.style.width=E.canvas.width+'px';E.canvas.style.height=E.canvas.height+'px';E.inner.style.width=E.canvas.width+'px';E.inner.style.height=E.canvas.height+'px';currentRender=page.render({canvasContext:E.canvas.getContext('2d',{alpha:false}),viewport:vp});await currentRender.promise;currentRender=null;E.pageText.textContent=`${currentPage} / ${pdfDoc.numPages}`;E.prev.disabled=currentPage<=1;E.next.disabled=currentPage>=pdfDoc.numPages}
 function placeMark(el,b,label,sx,sy,pad=12){if(!b){el.style.display='none';return}el.dataset.label=label;el.style.display='block';el.style.left=Math.max(0,b.x*sx-pad)+'px';el.style.top=Math.max(0,b.y*sy-pad)+'px';el.style.width=Math.max(28,(b.x1-b.x)*sx+pad*2)+'px';el.style.height=Math.max(24,(b.y1-b.y)*sy+pad*2)+'px'}
-async function showCandidate(c){if(!pdfDoc){toast('元PDFをもう一度開いてください');return}E.viewer.style.display='block';await renderPage(c.page||1);const src=c.sources||{label:c.box,length:null,width:null};const base=src.label||c.box;if(base&&base.pageWidth&&base.pageHeight){const sx=E.canvas.width/base.pageWidth,sy=E.canvas.height/base.pageHeight;placeMark(E.markPart,src.label||c.box,'部材名',sx,sy,18);placeMark(E.markL,src.length,c.l?`長さ ${c.l}`:'長さ 未特定',sx,sy,12);placeMark(E.markW,src.width,c.w?`幅 ${c.w}`:'幅 未特定',sx,sy,12);const missing=[];if(!src.length)missing.push('長さ');if(!src.width)missing.push('幅');E.viewHint.textContent=missing.length?`${c.name}・${missing.join('／')}は図面記載を特定できず要確認`:`${c.name}・採用した寸法位置を表示`;setTimeout(()=>{(E.markL.style.display!=='none'?E.markL:E.markPart).scrollIntoView({behavior:'smooth',block:'center',inline:'center'})},60)}else{E.markPart.style.display=E.markL.style.display=E.markW.style.display='none';E.viewHint.textContent=`${c.name}・寸法位置情報なし`}E.viewer.scrollIntoView({behavior:'smooth',block:'start'})}
+async function showCandidate(c){if(!pdfDoc){toast('元PDFをもう一度開いてください');return}E.viewer.style.display='block';await renderPage(c.page||1);const src=c.sources||{};const base=src.body||src.length||src.width||c.box;if(base&&base.pageWidth&&base.pageHeight){const sx=E.canvas.width/base.pageWidth,sy=E.canvas.height/base.pageHeight;placeMark(E.markPart,src.body||c.box,'検出した本体',sx,sy,4);placeMark(E.markL,src.length,c.l?`長さ ${c.l}`:'長さ 要確認',sx,sy,12);placeMark(E.markW,src.width,c.w?`幅 ${c.w}`:'幅 要確認',sx,sy,12);const missing=[];if(!src.length)missing.push('長さ');if(!src.width)missing.push('幅');E.viewHint.textContent=missing.length?`灰色枠が検出した本体。${missing.join('／')}は図面上で対応を確定できません。`:'灰色枠が検出した本体。緑・茶色が対応付けた図面記載寸法です。';setTimeout(()=>E.markPart.scrollIntoView({behavior:'smooth',block:'center',inline:'center'}),60)}else{E.markPart.style.display=E.markL.style.display=E.markW.style.display='none';E.viewHint.textContent='本体位置情報なし'}E.viewer.scrollIntoView({behavior:'smooth',block:'start'})}
 E.prev.addEventListener('click',()=>renderPage(currentPage-1));E.next.addEventListener('click',()=>renderPage(currentPage+1));E.closeViewer.addEventListener('click',()=>{E.viewer.style.display='none'});
 E.manualAdd.addEventListener('click',()=>{const name=E.mName.value.trim(),l=cleanNum(E.mL.value),w=cleanNum(E.mW.value),qty=Math.max(1,parseInt(cleanNum(E.mQty.value)||'1',10));if(!name||!l||!w){toast('部材名・長さ・幅を確認してください');return}candidates.push({id:uid(),name,l,w,qty,page:currentPage||null,confidence:100,checked:true,box:null,reason:'手動追加'});save();E.mName.value='';E.mL.value='';E.mW.value='';E.mQty.value='1';toast('追加しました')});
 E.clear.addEventListener('click',()=>{if(!candidates.length)return;if(confirm('候補をすべて空にしますか？')){candidates=[];save();toast('空にしました')}});
-E.export.addEventListener('click',()=>{const chosen=candidates.filter(c=>c.checked&&c.name&&cleanNum(c.l)&&cleanNum(c.w));if(!chosen.length){toast('採用する部材がありません');return}const parts=chosen.map(c=>({name:c.name,length:Number(cleanNum(c.l)),width:Number(cleanNum(c.w)),qty:Math.max(1,Number(c.qty)||1),sourcePage:c.page,confidence:c.confidence}));const payload={format:'pick-parts',version:3,exportedAt:new Date().toISOString(),sourcePdf:currentFile?.name||'',parts};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='pick-parts.json';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);toast(`${parts.length}件を書き出しました`)});
+E.export.addEventListener('click',()=>{const chosen=candidates.filter(c=>c.checked&&c.name&&cleanNum(c.l)&&cleanNum(c.w));if(!chosen.length){toast('採用する部材がありません');return}const parts=chosen.map(c=>({name:c.name,length:Number(cleanNum(c.l)),width:Number(cleanNum(c.w)),qty:Math.max(1,Number(c.qty)||1),sourcePage:c.page,confidence:c.confidence}));const payload={format:'pick-parts',version:5,exportedAt:new Date().toISOString(),sourcePdf:currentFile?.name||'',parts};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='pick-parts.json';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);toast(`${parts.length}件を書き出しました`)});
 async function selfTest(){if(!new URLSearchParams(location.search).has('selftest'))return;
  function testCanvas(includeWidth=true){const c=document.createElement('canvas');c.width=1000;c.height=800;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,1000,800);x.strokeStyle='#000';x.lineWidth=2;
-   // 1837 の左右に水平寸法線。近くの 999 には寸法線を描かない。
-   x.beginPath();x.moveTo(170,430);x.lineTo(298,430);x.moveTo(372,430);x.lineTo(620,430);x.stroke();
-   if(includeWidth){x.beginPath();x.moveTo(530,100);x.lineTo(530,210);x.moveTo(530,270);x.lineTo(530,510);x.stroke()}
-   return c}
- const base=[
- {text:'天',conf:95,x:300,y:220,w:28,h:25,block:'1',par:'1',line:'1'},{text:'板',conf:95,x:329,y:220,w:28,h:25,block:'1',par:'1',line:'1'},{text:'-1',conf:93,x:358,y:220,w:20,h:25,block:'1',par:'1',line:'1'},
- {text:'1,837',conf:96,x:305,y:420,w:55,h:18,block:'2',par:'1',line:'1'},{text:'999',conf:99,x:340,y:300,w:38,h:18,block:'7',par:'1',line:'1'},
- {text:'460',conf:95,x:520,y:220,w:18,h:40,block:'3',par:'1',line:'1'}];
- const out=extractCandidatesFromWords(base,3,1000,800,testCanvas(true));let ok=out.length===1&&out[0].name==='天板-1'&&out[0].l==='1837'&&out[0].w==='460'&&out[0].l!=='999'&&out[0].checked===true;
- const noWidth=extractCandidatesFromWords(base.filter(w=>w.text!=='460'),3,1000,800,testCanvas(false));ok=ok&&noWidth.length===1&&noWidth[0].l==='1837'&&noWidth[0].w===''&&noWidth[0].checked===false&&/要確認/.test(noWidth[0].reason);
- if(ok){candidates=[...noWidth];renderCandidates();ok=E.list.querySelectorAll('.cand').length===1&&E.list.querySelector('input[data-k="w"]').placeholder==='要確認'}
- document.documentElement.dataset.selftest=ok?'pass':'fail';const m=document.createElement('meta');m.name='pick-selftest';m.content=ok?'pass':'fail';document.head.appendChild(m)}
-window.__pickTest={parseTsv,extractCandidatesFromWords,wordsFromResult,makeInkProbe};renderCandidates();selfTest();
+   // 家具本体：閉じた矩形＋内部棚線
+   x.strokeRect(200,190,430,250);x.beginPath();x.moveTo(200,315);x.lineTo(630,315);x.stroke();
+   // 長さ寸法線（本体の下）
+   x.beginPath();x.moveTo(200,500);x.lineTo(390,500);x.moveTo(450,500);x.lineTo(630,500);x.moveTo(200,482);x.lineTo(200,518);x.moveTo(630,482);x.lineTo(630,518);x.stroke();
+   if(includeWidth){x.beginPath();x.moveTo(700,190);x.lineTo(700,285);x.moveTo(700,345);x.lineTo(700,440);x.moveTo(682,190);x.lineTo(718,190);x.moveTo(682,440);x.lineTo(718,440);x.stroke()}
+   // 無関係な表と寸法数字用線
+   x.strokeRect(760,40,190,100);x.beginPath();x.moveTo(40,650);x.lineTo(160,650);x.moveTo(210,650);x.lineTo(320,650);x.stroke();return c}
+ const words=[
+ {text:'天板-1',conf:99,x:300,y:250,w:80,h:25,block:'1',par:'1',line:'1'},
+ {text:'注記',conf:99,x:330,y:280,w:55,h:20,block:'2',par:'1',line:'1'},
+ {text:'1800',conf:96,x:395,y:488,w:48,h:22,block:'3',par:'1',line:'1'},
+ {text:'999',conf:99,x:165,y:638,w:38,h:22,block:'4',par:'1',line:'1'},
+ {text:'600',conf:95,x:688,y:296,w:24,h:38,block:'5',par:'1',line:'1'}];
+ const canvas=testCanvas(true),bodies=detectBodyShapes(canvas),out=extractCandidatesFromWords(words,3,1000,800,canvas);let target=out.find(c=>c.sources?.body&&c.sources.body.x<300&&c.sources.body.x1>550&&c.sources.body.y<260&&c.sources.body.y1>400);let ok=bodies.length>=1&&!!target&&target.l==='1800'&&target.w==='600'&&target.l!=='999'&&!JSON.stringify(out).includes('天板-1')&&!JSON.stringify(out).includes('注記');
+ const c2=testCanvas(false),out2=extractCandidatesFromWords(words.filter(w=>w.text!=='600'),3,1000,800,c2);const t2=out2.find(c=>c.sources?.body&&c.sources.body.x<300&&c.sources.body.x1>550);ok=ok&&!!t2&&t2.l==='1800'&&t2.w===''&&t2.checked===false&&/要確認/.test(t2.reason);
+ if(ok){candidates=[target];renderCandidates();ok=E.list.querySelectorAll('.cand').length===1&&E.list.textContent.includes('本体線：検出')&&!E.list.textContent.includes('天板-1')}
+ document.documentElement.dataset.selftest=ok?'pass':'fail';const mm=document.createElement('meta');mm.name='pick-selftest';mm.content=ok?'pass':'fail';document.head.appendChild(mm)}
+window.__pickTest={parseTsv,extractCandidatesFromWords,wordsFromResult,makeInkProbe,detectBodyShapes,collectDimensionNumbers};renderCandidates();selfTest();
 if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
 })();
 </script>
