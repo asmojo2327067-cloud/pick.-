@@ -25,11 +25,11 @@
 </head>
 <body>
 <div class="app">
-<header class="top"><div><span class="brand">pick.</span><span class="ver">v0.6 FORMULA</span></div><div class="privacy">● 図面は端末内解析</div></header>
-<div class="lead"><b>図面は構造と寸法式にする。</b> PICKでは材料厚を決めません。図面記載寸法は固定値、厚みに左右される寸法は <code>thickness(P1)</code> などの変数式としてMAへ渡します。</div>
+<header class="top"><div><span class="brand">pick.</span><span class="ver">v0.7 BOARD</span></div><div class="privacy">● 図面は端末内解析</div></header>
+<div class="lead"><b>板線から部材を拾い、寸法式にする。</b> PICKでは材料厚を決めません。開口ではなく、平行な2本線で表された板を先に検出します。図面記載寸法は固定値、厚みに左右される寸法は <code>thickness(P1)</code> などの変数式としてMAへ渡します。</div>
 
 <section class="panel">
-  <div class="panelHead"><div><div class="panelTitle">図面から自動拾い</div><div class="small">本体線 → 寸法の順で全ページ解析</div></div><div class="small" id="engineState">待機中</div></div>
+  <div class="panelHead"><div><div class="panelTitle">図面から自動拾い</div><div class="small">板線 → 寸法 → 図種の順で全ページ解析</div></div><div class="small" id="engineState">待機中</div></div>
   <div class="hero">
     <label class="drop" id="dropLabel">
       <input id="pdfInput" type="file" accept="application/pdf,.pdf">
@@ -39,25 +39,25 @@
     </label>
     <div class="progressWrap" id="progressWrap"><div class="progressLine"><div class="progressBar" id="progressBar"></div></div><div class="progressText"><span id="progressStatus">準備中…</span><span id="progressPct">0%</span></div></div>
     <div class="scanActions" id="scanActions"><button class="primary" id="rescanBtn">もう一度自動拾い</button><button class="secondary" id="stopBtn" style="display:none">中止</button></div>
-    <div class="privacyNote">PDF画像はアップロードしません。OCRは数字専用です。図面中の文字は部材名には使わず、PICKは本体線・図面寸法・寸法同士の関係をMAへ渡します。</div>
+    <div class="privacyNote">PDF画像はアップロードしません。文字は「正面図・平面図・断面図」など図面構成の判定にだけ使い、部材名には使いません。部材は平行な作図線から検出します。</div>
   </div>
 </section>
 
 <section class="panel" id="candidatePanel">
-  <div class="panelHead"><div><div class="panelTitle">部材・寸法ルール</div><div class="small">図面値は固定／厚みに依存する寸法は式のままMAへ</div></div><div class="small" id="candidateState">0件</div></div>
-  <div class="summary"><div class="sumBox"><div class="sumNum" id="sumAll">0</div><div class="sumLabel">候補</div></div><div class="sumBox"><div class="sumNum" id="sumChecked">0</div><div class="sumLabel">採用</div></div><div class="sumBox"><div class="sumNum" id="sumReview">0</div><div class="sumLabel">要確認</div></div></div>
-  <div class="formulaIntro"><b>PICKでは厚みを入れません。</b><br>例：棚板の長さが「本体900 − 左右側板の厚み」なら <code>900 - thickness(P1) - thickness(P2)</code> としてMAへ渡します。</div><div class="candidateList" id="candidateList"><div class="empty">PDFを選ぶと、まず本体の線を検出し、その本体に対応する寸法を候補にします。</div></div>
+  <div class="panelHead"><div><div class="panelTitle">板候補・寸法ルール</div><div class="small">図面値は固定／厚みに依存する寸法は式のままMAへ</div></div><div class="small" id="candidateState">0件</div></div>
+  <div class="summary"><div class="sumBox"><div class="sumNum" id="sumAll">0</div><div class="sumLabel">候補</div></div><div class="sumBox"><div class="sumNum" id="sumChecked">0</div><div class="sumLabel">確認済</div></div><div class="sumBox"><div class="sumNum" id="sumReview">0</div><div class="sumLabel">要確認</div></div></div>
+  <div class="formulaIntro"><b>PICKでは厚みを入れません。チェックは「確認済み」の印で、MAへの送信対象には影響しません。MAへは検出した板候補をすべて送り、未確定寸法は未確定のまま渡します。</b><br>例：棚板の長さが「本体900 − 左右側板の厚み」なら <code>900 - thickness(P1) - thickness(P2)</code> としてMAへ渡します。</div><div class="candidateList" id="candidateList"><div class="empty">PDFを選ぶと、まず本体の線を検出し、その本体に対応する寸法を候補にします。</div></div>
   <details class="manual"><summary>＋ 自動で拾えなかった部材を手動追加</summary><div class="manualGrid"><input id="mName" placeholder="部材名"><input id="mL" inputmode="decimal" placeholder="長さ"><input id="mW" inputmode="decimal" placeholder="幅"><input id="mQty" class="mq" inputmode="numeric" value="1"><button id="manualAdd">追加</button></div></details>
 </section>
 
 <section class="panel viewer" id="viewerPanel">
   <div class="panelHead"><div><div class="panelTitle">図面で確認</div><div class="small" id="viewHint">候補の位置を表示</div></div><button class="secondary" id="closeViewer">閉じる</button></div>
-  <div class="canvasStage" id="canvasStage"><div class="canvasInner" id="canvasInner"><canvas class="pdfCanvas" id="pdfCanvas"></canvas><div id="markPart" class="mark partMark" data-label="検出した本体" style="display:none"></div><div id="markL" class="mark lenMark" data-label="長さ寸法"></div><div id="markW" class="mark widMark" data-label="幅寸法"></div></div></div>
+  <div class="canvasStage" id="canvasStage"><div class="canvasInner" id="canvasInner"><canvas class="pdfCanvas" id="pdfCanvas"></canvas><div id="markPart" class="mark partMark" data-label="検出した板" style="display:none"></div><div id="markL" class="mark lenMark" data-label="長さ寸法"></div><div id="markW" class="mark widMark" data-label="幅寸法"></div></div></div>
   <div class="pagebar"><button id="prevBtn">← 前</button><div class="pageText" id="pageText">– / –</div><button id="nextBtn">次 →</button></div>
 </section>
 </div>
 
-<div class="bottom"><button class="clear" id="clearBtn">候補を空にする</button><button class="secondary" id="exportBtn">JSON</button><button class="export" id="sendMaBtn">MAへ送る</button></div>
+<div class="bottom"><button class="clear" id="clearBtn">候補を空にする</button><button class="secondary" id="exportBtn">JSON</button><button class="export" id="sendMaBtn">MAへ全件送る</button></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -66,7 +66,7 @@
 const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const E={input:$('#pdfInput'),drop:$('#dropLabel'),emptyUpload:$('#emptyUpload'),loadedUpload:$('#loadedUpload'),fileName:$('#fileName'),fileMeta:$('#fileMeta'),changeBtn:$('#changeBtn'),engine:$('#engineState'),progressWrap:$('#progressWrap'),bar:$('#progressBar'),progressStatus:$('#progressStatus'),pct:$('#progressPct'),scanActions:$('#scanActions'),rescan:$('#rescanBtn'),stop:$('#stopBtn'),candidateState:$('#candidateState'),list:$('#candidateList'),sumAll:$('#sumAll'),sumChecked:$('#sumChecked'),sumReview:$('#sumReview'),viewer:$('#viewerPanel'),canvas:$('#pdfCanvas'),inner:$('#canvasInner'),markPart:$('#markPart'),markL:$('#markL'),markW:$('#markW'),viewHint:$('#viewHint'),pageText:$('#pageText'),prev:$('#prevBtn'),next:$('#nextBtn'),closeViewer:$('#closeViewer'),mName:$('#mName'),mL:$('#mL'),mW:$('#mW'),mQty:$('#mQty'),manualAdd:$('#manualAdd'),clear:$('#clearBtn'),export:$('#exportBtn'),sendMa:$('#sendMaBtn'),toast:$('#toast')};
 let pdfDoc=null,pdfBytes=null,currentFile=null,currentPage=1,scanAbort=false,ocrWorker=null,currentRender=null,candidates=[];
-const STORE='pick_candidates_v06',LEGACY_STORE='pick_candidates_v05',BRIDGE_KEY='pick_ma_bridge_v1';
+const STORE='pick_candidates_v07',LEGACY_STORE='pick_candidates_v06',BRIDGE_KEY='pick_ma_bridge_v1';
 try{const raw=localStorage.getItem(STORE)||localStorage.getItem(LEGACY_STORE)||'[]';const s=JSON.parse(raw);if(Array.isArray(s))candidates=s}catch{}
 function ensureCandidateRules(){
  let next=1;const used=new Set(candidates.map(c=>c.partId).filter(Boolean));
@@ -99,7 +99,8 @@ async function ensureTesseract(){if(!window.Tesseract)await loadScript('https://
 function parseTsv(tsv){const rows=[];const lines=String(tsv||'').split(/\r?\n/);if(lines.length<2)return rows;const head=lines[0].split('\t');for(let i=1;i<lines.length;i++){if(!lines[i].trim())continue;const c=lines[i].split('\t');const r={};head.forEach((h,j)=>r[h]=c[j]??'');if(r.level!=='5'||!String(r.text||'').trim())continue;rows.push({text:String(r.text).trim(),conf:Number(r.conf)||0,x:Number(r.left)||0,y:Number(r.top)||0,w:Number(r.width)||0,h:Number(r.height)||0,block:String(r.block_num||''),par:String(r.par_num||''),line:String(r.line_num||'')})}return rows}
 function wordsFromResult(data){if(data&&data.tsv){const a=parseTsv(data.tsv);if(a.length)return a}const src=(data&&data.words)||[];return src.map((w,i)=>({text:String(w.text||'').trim(),conf:Number(w.confidence??w.conf)||0,x:Number(w.bbox?.x0)||0,y:Number(w.bbox?.y0)||0,w:Math.max(0,Number(w.bbox?.x1||0)-Number(w.bbox?.x0||0)),h:Math.max(0,Number(w.bbox?.y1||0)-Number(w.bbox?.y0||0)),block:String(w.block_num??i),par:String(w.par_num??0),line:String(w.line_num??0)})).filter(w=>w.text)}
 function numericToken(text){
- let s=String(text||'').trim().replace(/[OoＯｏ]/g,'0').replace(/[Il|Ｉｌ]/g,'1').replace(/[^0-9.,]/g,'').replace(/[，,]/g,'');
+ const raw=String(text||'').trim();if(!/^[\s0-9OoＯｏIl|Ｉｌ.,，]+$/.test(raw))return null;
+ let s=raw.replace(/[OoＯｏ]/g,'0').replace(/[Il|Ｉｌ]/g,'1').replace(/[^0-9.,]/g,'').replace(/[，,]/g,'');
  if(/^\d{1,2}\.\d{3}$/.test(s))s=s.replace('.','');
  if((s.match(/\./g)||[]).length>1||!/^\d{1,5}(?:\.\d+)?$/.test(s))return null;
  const n=Number(s);if(!Number.isFinite(n)||n<10||n>6000)return null;return {text:s,value:n}
@@ -109,20 +110,25 @@ function makeInkProbe(canvas){
  let img=null;try{img=ctx.getImageData(0,0,canvas.width,canvas.height)}catch{return null}
  const {data,width,height}=img;
  function dark(x,y){x=x|0;y=y|0;if(x<0||y<0||x>=width||y>=height)return 0;const i=(y*width+x)*4;const lum=.2126*data[i]+.7152*data[i+1]+.0722*data[i+2];return lum<185?1:0}
- function ratioH(y,x0,x1){x0=Math.max(0,x0|0);x1=Math.min(width-1,x1|0);if(x1<=x0)return 0;let d=0,n=0;for(let x=x0;x<=x1;x+=2){n++;d+=dark(x,y)}return n?d/n:0}
- function ratioV(x,y0,y1){y0=Math.max(0,y0|0);y1=Math.min(height-1,y1|0);if(y1<=y0)return 0;let d=0,n=0;for(let y=y0;y<=y1;y+=2){n++;d+=dark(x,y)}return n?d/n:0}
+ function darkNearH(x,y){return dark(x,y)||dark(x,y-1)||dark(x,y+1)}
+ function darkNearV(x,y){return dark(x,y)||dark(x-1,y)||dark(x+1,y)}
+ function ratioH(y,x0,x1){x0=Math.max(0,x0|0);x1=Math.min(width-1,x1|0);if(x1<=x0)return 0;let d=0,n=0;for(let x=x0;x<=x1;x+=2){n++;d+=darkNearH(x,y)}return n?d/n:0}
+ function ratioV(x,y0,y1){y0=Math.max(0,y0|0);y1=Math.min(height-1,y1|0);if(y1<=y0)return 0;let d=0,n=0;for(let y=y0;y<=y1;y+=2){n++;d+=darkNearV(x,y)}return n?d/n:0}
+ function trace(axis,line,from,dir,maxDist){let found=false,last=from,gap=0;const maxGap=Math.max(8,Math.round(maxDist*.035));for(let d=0;d<=maxDist;d++){const pos=from+dir*d;const on=axis==='h'?darkNearH(pos,line):darkNearV(line,pos);if(on){found=true;last=pos;gap=0}else if(found){gap++;if(gap>maxGap)break}}return found?last:from}
  function evidence(n,axis){
    const cx=n.x+n.w/2,cy=n.y+n.h/2;
    if(axis==='h'){
-     const span=Math.max(120,n.w*8),gap=Math.max(4,n.w*.14);let best=0,bestY=cy;
-     const y0=Math.max(0,Math.round(cy-n.h*2.6)),y1=Math.min(height-1,Math.round(cy+n.h*2.6));
+     const span=Math.max(140,n.w*11),gap=Math.max(4,n.w*.12);let best=0,bestY=cy;
+     const y0=Math.max(0,Math.round(cy-n.h*2.8)),y1=Math.min(height-1,Math.round(cy+n.h*2.8));
      for(let y=y0;y<=y1;y++){const left=ratioH(y,cx-span,n.x-gap),right=ratioH(y,n.x+n.w+gap,cx+span);const both=Math.min(left,right);if(both>best){best=both;bestY=y}}
-     return {score:Math.min(1,best/.30),line:bestY};
+     const left=trace('h',bestY,Math.max(0,n.x-gap),-1,Math.min(width,span*2.4)),right=trace('h',bestY,Math.min(width-1,n.x+n.w+gap),1,Math.min(width,span*2.4));
+     return {score:Math.min(1,best/.30),line:bestY,lineStart:Math.min(left,right),lineEnd:Math.max(left,right),spanPx:Math.max(0,right-left)};
    }
-   const span=Math.max(120,n.h*8),gap=Math.max(4,n.h*.14);let best=0,bestX=cx;
-   const x0=Math.max(0,Math.round(cx-n.w*2.6)),x1=Math.min(width-1,Math.round(cx+n.w*2.6));
+   const span=Math.max(140,n.h*11),gap=Math.max(4,n.h*.12);let best=0,bestX=cx;
+   const x0=Math.max(0,Math.round(cx-n.w*2.8)),x1=Math.min(width-1,Math.round(cx+n.w*2.8));
    for(let x=x0;x<=x1;x++){const top=ratioV(x,cy-span,n.y-gap),bot=ratioV(x,n.y+n.h+gap,cy+span);const both=Math.min(top,bot);if(both>best){best=both;bestX=x}}
-   return {score:Math.min(1,best/.30),line:bestX};
+   const top=trace('v',bestX,Math.max(0,n.y-gap),-1,Math.min(height,span*2.4)),bot=trace('v',bestX,Math.min(height-1,n.y+n.h+gap),1,Math.min(height,span*2.4));
+   return {score:Math.min(1,best/.30),line:bestX,lineStart:Math.min(top,bot),lineEnd:Math.max(top,bot),spanPx:Math.max(0,bot-top)};
  }
  return {evidence,dark,ratioH,ratioV,width,height};
 }
@@ -136,99 +142,59 @@ function dedupeDims(arr){
 function collectDimensionNumbers(words,canvas){
  const probe=canvas?makeInkProbe(canvas):null,dims=[];
  for(const w of words){
-   const n=numericToken(w.text);if(!n||Number(w.conf)<50)continue;
+   const n=numericToken(w.text);if(!n||Number(w.conf)<45)continue;
    const base={...n,x:w.x,y:w.y,w:w.w,h:w.h,conf:Number(w.conf)||0,cx:w.x+w.w/2,cy:w.y+w.h/2};
-   const he=probe?probe.evidence(base,'h'):{score:(w.w>w.h*1.25?.72:.1)};
-   const ve=probe?probe.evidence(base,'v'):{score:(w.h>w.w*1.25?.72:.1)};
-   const rotated=String(w.block||'').startsWith('r');let axis='',ev=0;
-   if(rotated){if(ve.score<.48)continue;axis='v';ev=ve.score}
-   else if(base.w>=base.h*1.25){if(he.score<.48)continue;axis='h';ev=he.score}
-   else if(base.h>=base.w*1.25){if(ve.score<.48)continue;axis='v';ev=ve.score}
-   else{const best=Math.max(he.score,ve.score);if(best<.55)continue;if(he.score>=.55&&ve.score>=.55&&Math.abs(he.score-ve.score)<.14)continue;axis=he.score>=ve.score?'h':'v';ev=axis==='h'?he.score:ve.score}
-   dims.push({...base,axis,evidence:ev,dimH:he.score,dimV:ve.score})
+   const he=probe?probe.evidence(base,'h'):{score:(w.w>w.h*1.25?.72:.1),spanPx:0};
+   const ve=probe?probe.evidence(base,'v'):{score:(w.h>w.w*1.25?.72:.1),spanPx:0};
+   const rotated=String(w.block||'').startsWith('r');let axis='',ev=0,einfo=null;
+   if(rotated){if(ve.score<.44)continue;axis='v';ev=ve.score;einfo=ve}
+   else if(base.w>=base.h*1.18){if(he.score<.44)continue;axis='h';ev=he.score;einfo=he}
+   else if(base.h>=base.w*1.18){if(ve.score<.44)continue;axis='v';ev=ve.score;einfo=ve}
+   else{const best=Math.max(he.score,ve.score);if(best<.50)continue;if(he.score>=.50&&ve.score>=.50&&Math.abs(he.score-ve.score)<.12)continue;axis=he.score>=ve.score?'h':'v';ev=axis==='h'?he.score:ve.score;einfo=axis==='h'?he:ve}
+   dims.push({...base,axis,evidence:ev,dimH:he.score,dimV:ve.score,lineStart:einfo?.lineStart,lineEnd:einfo?.lineEnd,spanPx:einfo?.spanPx||0,lineCoord:einfo?.line})
  }
  return dedupeDims(dims)
 }
-function detectBodyShapes(canvas){
- const probe=makeInkProbe(canvas);if(!probe)return[];
- const W=canvas.width,H=canvas.height,step=Math.max(2,Math.round(W/900));
- const minHLen=Math.max(40,Math.round(W*.022)),minVLen=Math.max(28,Math.round(H*.020));
- function scanRuns(getVal,total,minLen,maxGap=3){
-   const out=[];let start=-1,last=-1,gap=0;
-   for(let i=0;i<total;i+=step){const on=getVal(i);if(on){if(start<0)start=i;last=i;gap=0}else if(start>=0){gap+=step;if(gap>maxGap*step){if(last-start>=minLen)out.push([start,last]);start=last=-1;gap=0}}}
-   if(start>=0&&last-start>=minLen)out.push([start,last]);return out
- }
- const hs=[];for(let y=step;y<H-step;y+=step){
-   const runs=scanRuns(x=>probe.dark(x,y-step)||probe.dark(x,y)||probe.dark(x,y+step),W,minHLen,4);
-   for(const [x0,x1] of runs)hs.push({x0,x1,y,n:1})
- }
- const vs=[];for(let x=step;x<W-step;x+=step){
-   const runs=scanRuns(y=>probe.dark(x-step,y)||probe.dark(x,y)||probe.dark(x+step,y),H,minVLen,4);
-   for(const [y0,y1] of runs)vs.push({y0,y1,x,n:1})
- }
- function merge(lines,axis){
-   const out=[];const sorted=[...lines].sort((a,b)=>(axis==='h'?a.y-b.y:a.x-b.x));
-   for(const s of sorted){let hit=null;for(let i=out.length-1;i>=0&&i>out.length-90;i--){const o=out[i];const cd=Math.abs((axis==='h'?s.y:s.x)-(axis==='h'?o.y:o.x));if(cd>step*3.2)continue;const a0=axis==='h'?s.x0:s.y0,a1=axis==='h'?s.x1:s.y1,b0=axis==='h'?o.x0:o.y0,b1=axis==='h'?o.x1:o.y1;const ov=Math.max(0,Math.min(a1,b1)-Math.max(a0,b0)),mn=Math.min(a1-a0,b1-b0);if(mn>0&&ov/mn>.55){hit=o;break}}
-     if(hit){if(axis==='h'){hit.x0=Math.min(hit.x0,s.x0);hit.x1=Math.max(hit.x1,s.x1);hit.y=(hit.y*hit.n+s.y)/(hit.n+1)}else{hit.y0=Math.min(hit.y0,s.y0);hit.y1=Math.max(hit.y1,s.y1);hit.x=(hit.x*hit.n+s.x)/(hit.n+1)}hit.n++}else out.push({...s})
-   }return out
- }
- const Hs=merge(hs,'h').filter(l=>l.x1-l.x0>=minHLen),Vs=merge(vs,'v').filter(l=>l.y1-l.y0>=minVLen);
- const minRW=Math.max(90,W*.050),minRH=Math.max(30,H*.025),rects=[];
- const hsorted=[...Hs].sort((a,b)=>a.y-b.y);
- for(let i=0;i<hsorted.length;i++)for(let j=i+1;j<hsorted.length;j++){
-   const a=hsorted[i],b=hsorted[j],rh=b.y-a.y;if(rh<minRH)continue;if(rh>H*.50)break;
-   const common0=Math.max(a.x0,b.x0),common1=Math.min(a.x1,b.x1);if(common1-common0<minRW)continue;
-   const tol=Math.max(step*5,Math.min(18,rh*.08));
-   const crossing=Vs.filter(v=>v.x>=common0-tol&&v.x<=common1+tol&&v.y0<=a.y+tol&&v.y1>=b.y-tol);
-   if(crossing.length<2)continue;
-   crossing.sort((p,q)=>p.x-q.x);
-   for(let l=0;l<crossing.length;l++)for(let r=l+1;r<crossing.length;r++){
-     const L=crossing[l],R=crossing[r],rw=R.x-L.x;if(rw<minRW)continue;
-     const area=rw*rh,aspect=rw/rh;if(area>W*H*.25||aspect<.15||aspect>14||a.y>H*.88)continue;
-     if(L.x<common0-tol||R.x>common1+tol)continue;
-     const margin=Math.min(L.x,W-R.x,a.y,H-b.y);if(margin<Math.min(W,H)*.012&&area>W*H*.04)continue;
-     const edgeScore=Math.min(1,a.n/2)+Math.min(1,b.n/2)+Math.min(1,L.n/2)+Math.min(1,R.n/2);
-     const interScore=[a,b].reduce((s,hline)=>s+Vs.filter(v=>v.x>=L.x-tol&&v.x<=R.x+tol&&v.y0<=hline.y+tol&&v.y1>=hline.y-tol).length,0);
-     rects.push({x:L.x,y:a.y,x1:R.x,y1:b.y,score:edgeScore+Math.min(2,interScore*.18),kind:'rect'})
-   }
- }
- const ded=[];for(const r of rects.sort((a,b)=>b.score-a.score||((b.x1-b.x)*(b.y1-b.y)-(a.x1-a.x)*(a.y1-a.y)))){
-   const ra=(r.x1-r.x)*(r.y1-r.y);const dup=ded.some(o=>{const oa=(o.x1-o.x)*(o.y1-o.y),ix=Math.max(0,Math.min(r.x1,o.x1)-Math.max(r.x,o.x)),iy=Math.max(0,Math.min(r.y1,o.y1)-Math.max(r.y,o.y)),inter=ix*iy,union=ra+oa-inter,iou=union?inter/union:0,center=Math.hypot((r.x+r.x1-o.x-o.x1)/2,(r.y+r.y1-o.y-o.y1)/2),sizeDiff=Math.max(Math.abs((r.x1-r.x)-(o.x1-o.x))/Math.max(r.x1-r.x,o.x1-o.x),Math.abs((r.y1-r.y)-(o.y1-o.y))/Math.max(r.y1-r.y,o.y1-o.y));return iou>.70||(center<Math.max(18,step*8)&&sizeDiff<.22)});if(!dup)ded.push(r);if(ded.length>=30)break
- }
- // 矩形が少ないページでは、交点が多い長線群を「本体領域」として補助候補にする。
- {
-   const bodyH=Hs.filter(h=>Vs.filter(v=>v.x>=h.x0-step*3&&v.x<=h.x1+step*3&&v.y0<=h.y+step*4&&v.y1>=h.y-step*4).length>=2);
-   const used=new Set();for(let i=0;i<bodyH.length;i++){if(used.has(i))continue;const group=[bodyH[i]];used.add(i);let changed=true;while(changed){changed=false;for(let k=0;k<bodyH.length;k++){if(used.has(k))continue;const c=bodyH[k];const gx0=Math.min(...group.map(g=>g.x0)),gx1=Math.max(...group.map(g=>g.x1)),gy0=Math.min(...group.map(g=>g.y)),gy1=Math.max(...group.map(g=>g.y));if(c.x1>=gx0-W*.03&&c.x0<=gx1+W*.03&&c.y>=gy0-H*.08&&c.y<=gy1+H*.08){group.push(c);used.add(k);changed=true}}}
-     if(group.length<3)continue;const x0=Math.min(...group.map(g=>g.x0)),x1=Math.max(...group.map(g=>g.x1)),y0=Math.min(...group.map(g=>g.y)),y1=Math.max(...group.map(g=>g.y));const nearV=Vs.filter(v=>v.x>=x0-W*.03&&v.x<=x1+W*.03&&v.y1>=y0-H*.03&&v.y0<=y1+H*.03);if(nearV.length<2)continue;const bx0=Math.min(x0,...nearV.map(v=>v.x)),bx1=Math.max(x1,...nearV.map(v=>v.x)),by0=Math.min(y0,...nearV.map(v=>v.y0)),by1=Math.max(y1,...nearV.map(v=>v.y1));if((bx1-bx0)*(by1-by0)>W*H*.28||by0>H*.88)continue;ded.push({x:bx0,y:by0,x1:bx1,y1:by1,score:2.2+group.length*.08,kind:'region'})
-   }
- }
- const regions=ded.filter(r=>r.kind==='region');const rectsFinal=ded.filter(r=>r.kind==='rect'&&!regions.some(g=>{const ix=Math.max(0,Math.min(r.x1,g.x1)-Math.max(r.x,g.x)),iy=Math.max(0,Math.min(r.y1,g.y1)-Math.max(r.y,g.y)),inter=ix*iy,ra=(r.x1-r.x)*(r.y1-r.y);return ra>0&&inter/ra>.72}));
- const final=[...regions,...rectsFinal].sort((a,b)=>a.y-b.y||a.x-b.x).slice(0,24);return final.map(r=>({...r,pageWidth:W,pageHeight:H,lineStats:{h:Hs.length,v:Vs.length}}))
+function collectViewLabels(words,width,height){
+ const groups=new Map();for(const w of words){if(!String(w.text||'').trim())continue;const key=`${w.block}|${w.par}|${w.line}`;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(w)}
+ const out=[];const pats=[['天板平面図','plan'],['上部平面図','plan'],['下部平面図','plan'],['平面図','plan'],['正面図','front'],['断面図','section'],['断面詳細','section'],['側板詳細','section'],['詳細図','detail']];
+ for(const ws0 of groups.values()){const ws=[...ws0].sort((a,b)=>a.x-b.x),text=ws.map(w=>String(w.text||'')).join('').replace(/[\s　]/g,'');for(const [label,type] of pats){if(!text.includes(label))continue;const x=Math.min(...ws.map(w=>w.x)),y=Math.min(...ws.map(w=>w.y)),x1=Math.max(...ws.map(w=>w.x+w.w)),y1=Math.max(...ws.map(w=>w.y+w.h));out.push({label,type,x,y,x1,y1,cx:(x+x1)/2,cy:(y+y1)/2,pageWidth:width,pageHeight:height});break}}
+ return out
 }
-function bodyDistance(dim,body,axis,width,height){
- const bw=body.x1-body.x,bh=body.y1-body.y,cx=(body.x+body.x1)/2,cy=(body.y+body.y1)/2;
- if(axis==='h'){
-   const xInside=dim.cx>=body.x-bw*.22&&dim.cx<=body.x1+bw*.22;if(!xInside)return 9;
-   const dy=Math.min(Math.abs(dim.cy-body.y),Math.abs(dim.cy-body.y1),Math.abs(dim.cy-cy)*1.5)/Math.max(60,bh*.9);
-   const dx=Math.abs(dim.cx-cx)/Math.max(80,bw*.85);return dy*.72+dx*.28+(1-dim.evidence)*.32
- }
- const yInside=dim.cy>=body.y-bh*.28&&dim.cy<=body.y1+bh*.28;if(!yInside)return 9;
- const dx=Math.min(Math.abs(dim.cx-body.x),Math.abs(dim.cx-body.x1),Math.abs(dim.cx-cx)*1.5)/Math.max(60,bw*.9);
- const dy=Math.abs(dim.cy-cy)/Math.max(80,bh*.85);return dx*.72+dy*.28+(1-dim.evidence)*.32
+function scanDrawingLines(canvas){
+ const probe=makeInkProbe(canvas);if(!probe)return{Hs:[],Vs:[],step:2,probe:null};
+ const W=canvas.width,H=canvas.height,step=Math.max(2,Math.round(W/1000));
+ const minHLen=Math.max(32,Math.round(W*.014)),minVLen=Math.max(25,Math.round(H*.014));
+ function scanRuns(getVal,total,minLen,maxGap=3){const out=[];let start=-1,last=-1,gap=0;for(let i=0;i<total;i+=step){const on=getVal(i);if(on){if(start<0)start=i;last=i;gap=0}else if(start>=0){gap+=step;if(gap>maxGap*step){if(last-start>=minLen)out.push([start,last]);start=last=-1;gap=0}}}if(start>=0&&last-start>=minLen)out.push([start,last]);return out}
+ const hs=[];for(let y=step;y<H-step;y+=step){for(const [x0,x1] of scanRuns(x=>probe.dark(x,y-step)||probe.dark(x,y)||probe.dark(x,y+step),W,minHLen,3))hs.push({x0,x1,y,n:1})}
+ const vs=[];for(let x=step;x<W-step;x+=step){for(const [y0,y1] of scanRuns(y=>probe.dark(x-step,y)||probe.dark(x,y)||probe.dark(x+step,y),H,minVLen,3))vs.push({y0,y1,x,n:1})}
+ function merge(lines,axis){const out=[];for(const s of [...lines].sort((a,b)=>(axis==='h'?a.y-b.y:a.x-b.x))){let hit=null;for(let i=out.length-1;i>=0&&i>out.length-110;i--){const o=out[i],cd=Math.abs((axis==='h'?s.y:s.x)-(axis==='h'?o.y:o.x));if(cd>step*3.2)continue;const a0=axis==='h'?s.x0:s.y0,a1=axis==='h'?s.x1:s.y1,b0=axis==='h'?o.x0:o.y0,b1=axis==='h'?o.x1:o.y1,ov=Math.max(0,Math.min(a1,b1)-Math.max(a0,b0)),mn=Math.min(a1-a0,b1-b0);if(mn>0&&ov/mn>.58){hit=o;break}}if(hit){if(axis==='h'){hit.x0=Math.min(hit.x0,s.x0);hit.x1=Math.max(hit.x1,s.x1);hit.y=(hit.y*hit.n+s.y)/(hit.n+1)}else{hit.y0=Math.min(hit.y0,s.y0);hit.y1=Math.max(hit.y1,s.y1);hit.x=(hit.x*hit.n+s.x)/(hit.n+1)}hit.n++}else out.push({...s})}return out}
+ return {Hs:merge(hs,'h').filter(l=>l.x1-l.x0>=minHLen),Vs:merge(vs,'v').filter(l=>l.y1-l.y0>=minVLen),step,probe}
 }
+function detectBoardStrips(canvas){
+ const {Hs,Vs,step}=scanDrawingLines(canvas),W=canvas.width,H=canvas.height,out=[];
+ const minLong=Math.max(70,W*.028),minSep=Math.max(3,step*1.2);
+ function overlap(a0,a1,b0,b1){return Math.max(0,Math.min(a1,b1)-Math.max(a0,b0))}
+ function isGridishH(x0,x1,y,sep){const span=x1-x0,nearH=Hs.filter(h=>Math.abs(h.y-y)<Math.max(18,sep*7)&&overlap(h.x0,h.x1,x0,x1)>span*.68).length,nearV=Vs.filter(v=>v.x>x0&&v.x<x1&&v.y0<y-sep*2&&v.y1>y+sep*2).length;return nearH>=6&&nearV>=4}
+ function isGridishV(y0,y1,x,sep){const span=y1-y0,nearV=Vs.filter(v=>Math.abs(v.x-x)<Math.max(18,sep*7)&&overlap(v.y0,v.y1,y0,y1)>span*.68).length,nearH=Hs.filter(h=>h.y>y0&&h.y<y1&&h.x0<x-sep*2&&h.x1>x+sep*2).length;return nearV>=6&&nearH>=4}
+ const hs=[...Hs].sort((a,b)=>a.y-b.y);for(let i=0;i<hs.length;i++)for(let j=i+1;j<hs.length;j++){const a=hs[i],b=hs[j],sep=b.y-a.y;if(sep<minSep)continue;const x0=Math.max(a.x0,b.x0),x1=Math.min(a.x1,b.x1),long=x1-x0;if(long<minLong)continue;if(sep>Math.min(H*.035,long*.10,95))break;const tol=Math.max(step*4,sep*.8),caps=Vs.filter(v=>v.y0<=a.y+tol&&v.y1>=b.y-tol&&(Math.abs(v.x-x0)<tol*1.6||Math.abs(v.x-x1)<tol*1.6));if(caps.length<1)continue;if((a.y+b.y)/2>H*.89)continue;if(isGridishH(x0,x1,(a.y+b.y)/2,sep))continue;const aspect=long/sep;if(aspect<5.5)continue;out.push({x:x0,y:a.y,x1:x1,y1:b.y,orientation:'h',thicknessPx:sep,longPx:long,score:Math.min(4,aspect/10)+Math.min(2,(a.n+b.n)/2)+Math.min(1.5,caps.length*.45),kind:'board'})}
+ const vs=[...Vs].sort((a,b)=>a.x-b.x);for(let i=0;i<vs.length;i++)for(let j=i+1;j<vs.length;j++){const a=vs[i],b=vs[j],sep=b.x-a.x;if(sep<minSep)continue;const y0=Math.max(a.y0,b.y0),y1=Math.min(a.y1,b.y1),long=y1-y0;if(long<Math.max(60,H*.022))continue;if(sep>Math.min(W*.035,long*.10,95))break;const tol=Math.max(step*4,sep*.8),caps=Hs.filter(h=>h.x0<=a.x+tol&&h.x1>=b.x-tol&&(Math.abs(h.y-y0)<tol*1.6||Math.abs(h.y-y1)<tol*1.6));if(caps.length<1)continue;if((y0+y1)/2>H*.89)continue;if(isGridishV(y0,y1,(a.x+b.x)/2,sep))continue;const aspect=long/sep;if(aspect<5.5)continue;out.push({x:a.x,y:y0,x1:b.x,y1:y1,orientation:'v',thicknessPx:sep,longPx:long,score:Math.min(4,aspect/10)+Math.min(2,(a.n+b.n)/2)+Math.min(1.5,caps.length*.45),kind:'board'})}
+ const ded=[];for(const r of out.sort((a,b)=>b.score-a.score)){const ra=(r.x1-r.x)*(r.y1-r.y),dup=ded.some(o=>{if(o.orientation!==r.orientation)return false;const ix=Math.max(0,Math.min(r.x1,o.x1)-Math.max(r.x,o.x)),iy=Math.max(0,Math.min(r.y1,o.y1)-Math.max(r.y,o.y)),inter=ix*iy,union=ra+(o.x1-o.x)*(o.y1-o.y)-inter,iou=union?inter/union:0;const longOverlap=r.orientation==='h'?overlap(r.x,r.x1,o.x,o.x1)/Math.min(r.x1-r.x,o.x1-o.x):overlap(r.y,r.y1,o.y,o.y1)/Math.min(r.y1-r.y,o.y1-o.y);const crossCenter=r.orientation==='h'?Math.abs((r.y+r.y1-o.y-o.y1)/2):Math.abs((r.x+r.x1-o.x-o.x1)/2);return iou>.58||(longOverlap>.86&&crossCenter<Math.max(r.thicknessPx,o.thicknessPx)*.75)});if(!dup)ded.push(r);if(ded.length>=36)break}
+ return ded.sort((a,b)=>a.y-b.y||a.x-b.x).map(r=>({...r,pageWidth:W,pageHeight:H}))
+}
+function nearestView(board,labels,width,height){if(!labels?.length)return null;const cx=(board.x+board.x1)/2,cy=(board.y+board.y1)/2;const ranked=labels.map(l=>{const dx=Math.abs(cx-l.cx)/width,dy=Math.abs(cy-l.cy)/height;let score=dx*.8+dy*1.2;if(l.cy>cy)score-=.06;return{l,score}}).sort((a,b)=>a.score-b.score);return ranked[0]&&ranked[0].score<.30?ranked[0].l:null}
+function longAxisForBoard(board,view){if(view?.type==='section'&&board.orientation==='h')return'width';if(view?.type==='plan'&&board.orientation==='v')return'width';return'length'}
+function dimensionForBoard(board,dims,axis,view){const pool=dims.filter(d=>d.axis===board.orientation&&!(view?.type==='section'&&board.orientation==='h'&&d.value<150)),long=board.longPx,cx=(board.x+board.x1)/2,cy=(board.y+board.y1)/2;const ranked=pool.map(d=>{const span=d.spanPx||0,spanMismatch=span?Math.abs(span-long)/Math.max(long,span):.58;const pos=board.orientation==='h'?Math.abs(d.cy-cy)/Math.max(80,long):Math.abs(d.cx-cx)/Math.max(80,long);const along=board.orientation==='h'?Math.abs(d.cx-cx)/Math.max(80,long):Math.abs(d.cy-cy)/Math.max(80,long);return{d,score:spanMismatch*1.35+pos*.34+along*.18+(1-d.evidence)*.22,spanMismatch}}).filter(x=>x.spanMismatch<.33&&x.score<.72).sort((a,b)=>a.score-b.score);if(!ranked.length)return{d:null,ambiguous:false};if(ranked[1]&&ranked[1].score-ranked[0].score<.06)return{d:null,ambiguous:true};return{d:ranked[0].d,ambiguous:false}}
+function thicknessHintForBoard(board,dims){const perp=board.orientation==='h'?'v':'h',short=board.thicknessPx,cx=(board.x+board.x1)/2,cy=(board.y+board.y1)/2;const ranked=dims.filter(d=>d.axis===perp&&d.value<=80&&d.spanPx>0).map(d=>{const mismatch=Math.abs(d.spanPx-short)/Math.max(short,d.spanPx),dist=Math.hypot((d.cx-cx)/Math.max(50,board.longPx),(d.cy-cy)/Math.max(50,board.longPx));return{d,score:mismatch*1.5+dist*.35}}).filter(x=>x.score<.75).sort((a,b)=>a.score-b.score);return ranked[0]?.d||null}
 function extractCandidatesFromWords(words,page,width,height,canvas=null){
  if(!canvas)return[];
- const bodies=detectBodyShapes(canvas),dims=collectDimensionNumbers(words,canvas),hs=dims.filter(n=>n.axis==='h'),vs=dims.filter(n=>n.axis==='v');
- const out=[];let seq=1;
- for(const body of bodies){
-   const hr=hs.map(d=>({d,score:bodyDistance(d,body,'h',width,height)})).filter(x=>x.score<1.05).sort((a,b)=>a.score-b.score);
-   const vr=vs.map(d=>({d,score:bodyDistance(d,body,'v',width,height)})).filter(x=>x.score<1.05).sort((a,b)=>a.score-b.score);
-   if(!hr.length&&!vr.length)continue;
-   const hAmb=hr[1]&&hr[1].score-hr[0].score<.07,vAmb=vr[1]&&vr[1].score-vr[0].score<.07;
-   const h=hr[0]&&!hAmb?hr[0].d:null,v=vr[0]&&!vAmb?vr[0].d:null;
-   let reason='本体線を検出。';const missing=[];if(!h)missing.push(hAmb?'長さ候補が複数':'長さ寸法なし');if(!v)missing.push(vAmb?'幅候補が複数':'幅寸法なし');reason+=missing.length?` 要確認：${missing.join('／')}。`:' 対応する長さ・幅寸法を図面上で確認。';
-   const geometry=Math.min(1,body.score/4.2),dimScore=((h?h.evidence:0)+(v?v.evidence:0))/2;let confidence=Math.round(geometry*50+dimScore*34+(h&&v?14:0));if(hAmb||vAmb)confidence=Math.min(confidence,62);if(!h||!v)confidence=Math.min(confidence,58);
-   out.push({id:uid(),partId:'',name:`本体 ${seq++}`,l:h?h.text:'',w:v?v.text:'',qty:1,page,confidence:Math.max(24,Math.min(96,confidence)),checked:!!(h&&v&&!hAmb&&!vAmb&&confidence>=78),box:{...body},sources:{body:{...body},length:h?boxOf(h,width,height):null,width:v?boxOf(v,width,height):null},reason,evidence:{body:true,length:!!h,width:!!v},sourceMode:'body-first',bodyKind:body.kind,rules:{length:h?{type:'fixed',value:Number(h.text),source:'drawing'}:{type:'unknown'},width:v?{type:'fixed',value:Number(v.text),source:'drawing'}:{type:'unknown'}}})
+ const boards=detectBoardStrips(canvas),dims=collectDimensionNumbers(words,canvas),labels=collectViewLabels(words,width,height),out=[];let seq=1;
+ for(const board of boards){
+   const view=nearestView(board,labels,width,height),axis=longAxisForBoard(board,view),match=dimensionForBoard(board,dims,axis,view),d=match.d,th=thicknessHintForBoard(board,dims);
+   const rules={length:{type:'unknown'},width:{type:'unknown'}};let l='',w='';if(d){rules[axis]={type:'fixed',value:Number(d.text),source:'drawing'};if(axis==='length')l=d.text;else w=d.text}
+   let confidence=Math.round(Math.min(96,board.score*10+(d?28:0)+(view?8:0)));if(!d)confidence=Math.min(confidence,58);if(match.ambiguous)confidence=Math.min(confidence,52);
+   const reason=`板を平行線から検出。${view?` ${view.label}として解釈。`:''}${d?`${axis==='length'?'長さ':'幅'}寸法を図面線から対応。`:(match.ambiguous?' 対応寸法候補が複数のため要確認。':' 対応する長手寸法は要確認。')}${th?` 図面上の厚み候補 ${th.text} はMA寸法には使いません。`:''}`;
+   out.push({id:uid(),partId:'',name:`板 ${seq++}`,l,w,qty:1,page,confidence:Math.max(28,confidence),checked:!!(d&&confidence>=78),box:{...board},sources:{body:{...board},length:axis==='length'&&d?boxOf(d,width,height):null,width:axis==='width'&&d?boxOf(d,width,height):null},reason,evidence:{body:true,length:axis==='length'&&!!d,width:axis==='width'&&!!d},sourceMode:'board-first',bodyKind:'board',orientation:board.orientation,viewType:view?.type||'unknown',viewLabel:view?.label||'',thicknessHint:th?Number(th.text):null,rules,meta:{directAxis:axis,directDimension:d?{value:Number(d.text),spanPx:d.spanPx,lineStart:d.lineStart,lineEnd:d.lineEnd}:null}})
  }
  return out
 }
@@ -237,15 +203,22 @@ function inferStructuralFormulaSuggestions(){
  ensureCandidateRules();
  const byPage=new Map();for(const c of candidates){if(!c.box)continue;const p=String(c.page||'');if(!byPage.has(p))byPage.set(p,[]);byPage.get(p).push(c)}
  for(const arr of byPage.values())for(const c of arr){
-   const rule=c.rules?.length;if(!rule||rule.type!=='unknown'||!c.box)continue;
-   const cb=c.box,cw=cb.x1-cb.x,ch=cb.y1-cb.y;if(!(cw>0&&ch>0))continue;
-   const parents=arr.filter(o=>o!==c&&o.box&&normalizeRule(o,'length').type==='fixed').map(o=>{const b=o.box,bw=b.x1-b.x,bh=b.y1-b.y;const contains=cb.x>=b.x-bw*.03&&cb.x1<=b.x1+bw*.03&&cb.y>=b.y-bh*.12&&cb.y1<=b.y1+bh*.12;return contains&&bw>cw*1.015?{o,b,bw,bh,area:bw*bh}:null}).filter(Boolean).sort((a,b)=>a.area-b.area);
-   const parent=parents[0];if(!parent)continue;const pb=parent.b,pw=parent.bw,ph=parent.bh;
-   const overlapY=(b)=>Math.max(0,Math.min(cb.y1,b.y1)-Math.max(cb.y,b.y))/Math.max(1,ch);
-   const sideCandidates=arr.filter(o=>o!==c&&o!==parent.o&&o.box).map(o=>{const b=o.box,bw=b.x1-b.x,bh=b.y1-b.y;if(bw>pw*.16||bh<ch*.55||overlapY(b)<.55)return null;const leftDist=Math.abs(((b.x+b.x1)/2)-pb.x)/pw,rightDist=Math.abs(((b.x+b.x1)/2)-pb.x1)/pw;return {o,b,leftDist,rightDist}}).filter(Boolean);
-   const left=sideCandidates.filter(x=>x.leftDist<.11).sort((a,b)=>a.leftDist-b.leftDist)[0],right=sideCandidates.filter(x=>x.rightDist<.11&&x.o!==left?.o).sort((a,b)=>a.rightDist-b.rightDist)[0];
-   if(!left||!right)continue;
-   c.rules.length={type:'formula',expression:`length(${parent.o.partId}) - thickness(${left.o.partId}) - thickness(${right.o.partId})`,source:'inferred'};c.reason=(c.reason||'')+' 推定式：外側の本体寸法から左右の縦材厚を引く関係を検出。MAでパターンを当てた後に要確認。';c.checked=false;c.confidence=Math.min(Number(c.confidence)||60,68)
+   if(!c.box||c.rules?.length?.type!=='unknown')continue;const b=c.box,cx=(b.x+b.x1)/2,cy=(b.y+b.y1)/2,long=c.orientation==='h'?b.x1-b.x:b.y1-b.y;
+   if(c.orientation==='h'){
+     const verticals=arr.filter(o=>o!==c&&o.orientation==='v'&&o.box&&cy>=o.box.y-long*.06&&cy<=o.box.y1+long*.06).map(o=>({o,x:(o.box.x+o.box.x1)/2}));
+     const left=verticals.filter(x=>x.x<=b.x+long*.13).sort((a,z)=>Math.abs(a.x-b.x)-Math.abs(z.x-b.x))[0],right=verticals.filter(x=>x.x>=b.x1-long*.13&&x.o!==left?.o).sort((a,z)=>Math.abs(a.x-b.x1)-Math.abs(z.x-b.x1))[0];
+     if(!left||!right)continue;
+     const refs=arr.filter(o=>o!==c&&o.orientation==='h'&&o.box&&normalizeRule(o,'length').type==='fixed').filter(o=>o.box.x<=left.o.box.x+long*.08&&o.box.x1>=right.o.box.x1-long*.08&&(o.box.x1-o.box.x)>long*1.03).sort((a,z)=>(a.box.x1-a.box.x)-(z.box.x1-z.box.x));
+     const ref=refs[0];if(ref){c.rules.length={type:'formula',expression:`length(${ref.partId}) - thickness(${left.o.partId}) - thickness(${right.o.partId})`,source:'inferred'};c.reason+=' 推定式：この板は左右の板の間に入り、外側の板の長さから左右厚みを引く関係を検出。';c.checked=false;c.confidence=Math.min(Number(c.confidence)||60,68)}
+     else{c.rules.length={type:'unknown',source:'relation',relation:{type:'between',left:left.o.partId,right:right.o.partId}};c.reason+=' 左右の板の間に入る関係を検出。外寸参照が確定すればMA用の厚み式にできます。'}
+   }else if(c.orientation==='v'){
+     const horizontals=arr.filter(o=>o!==c&&o.orientation==='h'&&o.box&&cx>=o.box.x-long*.06&&cx<=o.box.x1+long*.06).map(o=>({o,y:(o.box.y+o.box.y1)/2}));
+     const top=horizontals.filter(x=>x.y<=b.y+long*.13).sort((a,z)=>Math.abs(a.y-b.y)-Math.abs(z.y-b.y))[0],bottom=horizontals.filter(x=>x.y>=b.y1-long*.13&&x.o!==top?.o).sort((a,z)=>Math.abs(a.y-b.y1)-Math.abs(z.y-b.y1))[0];
+     if(!top||!bottom)continue;
+     const refs=arr.filter(o=>o!==c&&o.orientation==='v'&&o.box&&normalizeRule(o,'length').type==='fixed').filter(o=>o.box.y<=top.o.box.y+long*.08&&o.box.y1>=bottom.o.box.y1-long*.08&&(o.box.y1-o.box.y)>long*1.03).sort((a,z)=>(a.box.y1-a.box.y)-(z.box.y1-z.box.y));
+     const ref=refs[0];if(ref){c.rules.length={type:'formula',expression:`length(${ref.partId}) - thickness(${top.o.partId}) - thickness(${bottom.o.partId})`,source:'inferred'};c.reason+=' 推定式：この板は上下の板の間に入り、外側の板の長さから上下厚みを引く関係を検出。';c.checked=false;c.confidence=Math.min(Number(c.confidence)||60,68)}
+     else{c.rules.length={type:'unknown',source:'relation',relation:{type:'between',top:top.o.partId,bottom:bottom.o.partId}};c.reason+=' 上下の板の間に入る関係を検出。外寸参照が確定すればMA用の厚み式にできます。'}
+   }
  }
 }
 function confidenceClass(c){return c>=72?'high':c>=50?'mid':'low'}
@@ -253,8 +226,8 @@ function renderCandidates(){
  ensureCandidateRules();
  const selected=candidates.filter(c=>c.checked).length,review=candidates.filter(c=>c.confidence<78||normalizeRule(c,'length').type==='unknown'||normalizeRule(c,'width').type==='unknown').length;
  E.sumAll.textContent=candidates.length;E.sumChecked.textContent=selected;E.sumReview.textContent=review;E.candidateState.textContent=`${candidates.length}件`;
- if(!candidates.length){E.list.innerHTML='<div class="empty">本体線を検出できた場所だけ候補になります。厚みに左右される寸法は「計算式」に切り替えて、変数式のままMAへ送れます。</div>';return}
- E.list.innerHTML=candidates.map((c,i)=>{const cc=confidenceClass(c.confidence),evB=c.evidence?.body||!!c.sources?.body,evL=c.evidence?.length||!!c.sources?.length,evW=c.evidence?.width||!!c.sources?.width;const rl=normalizeRule(c,'length'),rw=normalizeRule(c,'width');return`<div class="cand ${cc==='low'?'low':''}" data-id="${c.id}"><div class="candTop"><input class="check" type="checkbox" data-k="checked" ${c.checked?'checked':''}><span class="partId">${esc(c.partId)}</span><span class="pageChip">P.${c.page||'–'}・本体${i+1}</span><span class="confidence ${cc}">${c.confidence}% ${cc==='high'?'本体＋寸法':cc==='mid'?'確認':'要確認'}</span></div><div class="fields"><div class="field"><label>部材名（仮名）</label><input data-k="name" value="${esc(c.name)}"></div><div class="field"><label>長さ</label><input data-k="l" inputmode="decimal" placeholder="要確認" value="${esc(c.l)}"></div><div class="field"><label>幅</label><input data-k="w" inputmode="decimal" placeholder="要確認" value="${esc(c.w)}"></div><div class="field qty"><label>枚数</label><input data-k="qty" inputmode="numeric" value="${esc(c.qty)}"></div></div><details class="ruleBox"><summary>寸法ルール <span class="small">${esc(ruleLabel(rl))} / ${esc(ruleLabel(rw))}</span></summary>${ruleRowHtml(c,'length','長さ',rl)}${ruleRowHtml(c,'width','幅',rw)}<div class="ruleHelp">MAで使える変数：<code>thickness(P1)</code> / <code>length(P1)</code> / <code>width(P1)</code>。例：<code>900 - thickness(P1) - thickness(P2)</code></div></details><div class="candFoot"><div class="reason">${esc(c.reason)}<div class="evidence"><span class="ev ${evB?'ok':'miss'}">本体線：${evB?'検出':'なし'}</span><span class="ev ${evL?'ok':'miss'}">長さ：${evL?'図面記載':'要確認'}</span><span class="ev ${evW?'ok':'miss'}">幅：${evW?'図面記載':'要確認'}</span><span class="ev ok">厚み：MAで決定</span></div></div><button class="viewBtn" data-view>図面で確認</button><button class="delBtn" data-del>削除</button></div></div>`}).join('');syncAllRuleUi()
+ if(!candidates.length){E.list.innerHTML='<div class="empty">平行な2本線から板として検出できた場所だけ候補になります。開口は候補にしません。寸法を対応できない場合は「要確認」にします。</div>';return}
+ E.list.innerHTML=candidates.map((c,i)=>{const cc=confidenceClass(c.confidence),evB=c.evidence?.body||!!c.sources?.body,evL=c.evidence?.length||!!c.sources?.length,evW=c.evidence?.width||!!c.sources?.width;const rl=normalizeRule(c,'length'),rw=normalizeRule(c,'width');return`<div class="cand ${cc==='low'?'low':''}" data-id="${c.id}"><div class="candTop"><input class="check" type="checkbox" data-k="checked" ${c.checked?'checked':''}><span class="partId">${esc(c.partId)}</span><span class="pageChip">P.${c.page||'–'}・板${i+1}</span><span class="confidence ${cc}">${c.confidence}% ${cc==='high'?'板＋寸法':cc==='mid'?'確認':'要確認'}</span></div><div class="fields"><div class="field"><label>部材名（仮名）</label><input data-k="name" value="${esc(c.name)}"></div><div class="field"><label>長さ</label><input data-k="l" inputmode="decimal" placeholder="要確認" value="${esc(c.l)}"></div><div class="field"><label>幅</label><input data-k="w" inputmode="decimal" placeholder="要確認" value="${esc(c.w)}"></div><div class="field qty"><label>枚数</label><input data-k="qty" inputmode="numeric" value="${esc(c.qty)}"></div></div><details class="ruleBox"><summary>寸法ルール <span class="small">${esc(ruleLabel(rl))} / ${esc(ruleLabel(rw))}</span></summary>${ruleRowHtml(c,'length','長さ',rl)}${ruleRowHtml(c,'width','幅',rw)}<div class="ruleHelp">MAで使える変数：<code>thickness(P1)</code> / <code>length(P1)</code> / <code>width(P1)</code>。例：<code>900 - thickness(P1) - thickness(P2)</code></div></details><div class="candFoot"><div class="reason">${esc(c.reason)}<div class="evidence"><span class="ev ${evB?'ok':'miss'}">板線：${evB?'平行線検出':'なし'}</span><span class="ev ${evL?'ok':'miss'}">長さ：${evL?'図面記載':'要確認'}</span><span class="ev ${evW?'ok':'miss'}">幅：${evW?'図面記載':'要確認'}</span><span class="ev ok">厚み：MAで決定</span></div></div><button class="viewBtn" data-view>図面で確認</button><button class="delBtn" data-del>削除</button></div></div>`}).join('');syncAllRuleUi()
 }
 function ruleRowHtml(c,axis,label,rule){const expression=rule?.expression||'';return `<div class="ruleRow" data-rule-row="${axis}"><span class="ruleAxis">${label}</span><select data-rule-type="${axis}"><option value="fixed" ${rule?.type==='fixed'?'selected':''}>図面値</option><option value="formula" ${rule?.type==='formula'?'selected':''}>計算式</option><option value="unknown" ${rule?.type==='unknown'?'selected':''}>未確定</option></select><span class="ruleState ${rule?.type||'fixed'}">${ruleLabel(rule)}</span><input class="ruleExpr" data-rule-expr="${axis}" value="${esc(expression)}" placeholder="例: 900 - thickness(P1) - thickness(P2)"><div class="ruleTools"><select class="ruleRef" data-rule-ref="${axis}">${ruleRefsHtml(c.partId)}</select><button type="button" class="tokenBtn" data-token="${axis}" data-kind="thickness">−厚み</button><button type="button" class="tokenBtn" data-token="${axis}" data-kind="length">＋長さ</button><button type="button" class="tokenBtn" data-token="${axis}" data-kind="width">＋幅</button></div></div>`}
 E.list.addEventListener('input',e=>{
@@ -281,7 +254,7 @@ function setProgress(p,text){const x=Math.max(0,Math.min(100,p));E.bar.style.wid
 async function createOcrWorker(){
  await ensureTesseract();
  if(ocrWorker)return ocrWorker;
- ocrWorker=await window.Tesseract.createWorker('eng',1,{
+ ocrWorker=await window.Tesseract.createWorker('jpn+eng',1,{
    logger:m=>{
      if(m.status==='recognizing text'&&window.__scanPage){
        const total=pdfDoc?.numPages||1;
@@ -291,44 +264,43 @@ async function createOcrWorker(){
      }
    }
  });
- await ocrWorker.setParameters({tessedit_pageseg_mode:'11',tessedit_char_whitelist:'0123456789.,',preserve_interword_spaces:'1'});
+ await ocrWorker.setParameters({tessedit_pageseg_mode:'11',preserve_interword_spaces:'1'});
  return ocrWorker;
 }
 async function renderPageToCanvas(pageNo,targetWidth=2400){const page=await pdfDoc.getPage(pageNo);const base=page.getViewport({scale:1});const scale=Math.min(3,targetWidth/base.width);const vp=page.getViewport({scale});const c=document.createElement('canvas');c.width=Math.round(vp.width);c.height=Math.round(vp.height);await page.render({canvasContext:c.getContext('2d',{alpha:false}),viewport:vp}).promise;return c}
 function rotateCanvasCW(src){const c=document.createElement('canvas');c.width=src.height;c.height=src.width;const x=c.getContext('2d',{alpha:false});x.translate(c.width,0);x.rotate(Math.PI/2);x.drawImage(src,0,0);return c}
 function mapRotatedWordsToOriginal(words,origW,origH){return words.map(w=>({...w,x:w.y,y:origH-(w.x+w.w),w:w.h,h:w.w,block:'r'+w.block,par:'r'+w.par,line:'r'+w.line})).filter(w=>w.x>=0&&w.y>=0&&w.x+w.w<=origW+2&&w.y+w.h<=origH+2)}
-async function autoScan(){if(!pdfDoc)return;scanAbort=false;E.stop.style.display='inline-block';E.stop.disabled=false;E.rescan.disabled=true;E.engine.textContent='自動拾い中';candidates=[];renderCandidates();setProgress(0,'OCRを準備中…');try{const worker=await createOcrWorker();for(let p=1;p<=pdfDoc.numPages;p++){if(scanAbort)break;window.__scanPage=p;setProgress((p-1)/pdfDoc.numPages*100,`P.${p} 本体線を検出中…`);const canvas=await renderPageToCanvas(p,2400);const bodiesNow=detectBodyShapes(canvas);setProgress((p-.72)/pdfDoc.numPages*100,`P.${p} 本体 ${bodiesNow.length}箇所・寸法OCR中…`);const result=await worker.recognize(canvas);let words=wordsFromResult(result.data);if(!scanAbort){setProgress((p-.45)/pdfDoc.numPages*100,`P.${p} 縦寸法を確認中…`);const rotated=rotateCanvasCW(canvas);const rResult=await worker.recognize(rotated);words=words.concat(mapRotatedWordsToOriginal(wordsFromResult(rResult.data),canvas.width,canvas.height))}const found=extractCandidatesFromWords(words,p,canvas.width,canvas.height,canvas);candidates.push(...found);ensureCandidateRules();inferStructuralFormulaSuggestions();renderCandidates();localStorage.setItem(STORE,JSON.stringify(candidates));setProgress(p/pdfDoc.numPages*100,`P.${p} 完了・${found.length}件候補`);await new Promise(r=>setTimeout(r,20))}if(scanAbort){E.engine.textContent='中止';E.progressStatus.textContent=`中止しました・${candidates.length}件まで取得`}else{E.engine.textContent='完了';setProgress(100,`完了・${candidates.length}件の候補を抽出`);toast(`${candidates.length}件の候補を拾いました`)}}catch(err){console.error(err);E.engine.textContent='OCRエラー';E.progressStatus.textContent='OCRを起動できませんでした。ネット接続後に「もう一度自動拾い」を押してください。';toast('OCRを起動できませんでした')}finally{window.__scanPage=null;E.stop.style.display='none';E.rescan.disabled=false}}
+async function autoScan(){if(!pdfDoc)return;scanAbort=false;E.stop.style.display='inline-block';E.stop.disabled=false;E.rescan.disabled=true;E.engine.textContent='自動拾い中';candidates=[];renderCandidates();setProgress(0,'OCRを準備中…');try{const worker=await createOcrWorker();for(let p=1;p<=pdfDoc.numPages;p++){if(scanAbort)break;window.__scanPage=p;setProgress((p-1)/pdfDoc.numPages*100,`P.${p} 板線を検出中…`);const canvas=await renderPageToCanvas(p,2400);const bodiesNow=detectBoardStrips(canvas);setProgress((p-.72)/pdfDoc.numPages*100,`P.${p} 板 ${bodiesNow.length}枚候補・寸法OCR中…`);const result=await worker.recognize(canvas);let words=wordsFromResult(result.data);if(!scanAbort){setProgress((p-.45)/pdfDoc.numPages*100,`P.${p} 縦寸法を確認中…`);const rotated=rotateCanvasCW(canvas);const rResult=await worker.recognize(rotated);words=words.concat(mapRotatedWordsToOriginal(wordsFromResult(rResult.data),canvas.width,canvas.height))}const found=extractCandidatesFromWords(words,p,canvas.width,canvas.height,canvas);candidates.push(...found);ensureCandidateRules();inferStructuralFormulaSuggestions();renderCandidates();localStorage.setItem(STORE,JSON.stringify(candidates));setProgress(p/pdfDoc.numPages*100,`P.${p} 完了・${found.length}件候補`);await new Promise(r=>setTimeout(r,20))}if(scanAbort){E.engine.textContent='中止';E.progressStatus.textContent=`中止しました・${candidates.length}件まで取得`}else{E.engine.textContent='完了';setProgress(100,`完了・${candidates.length}件の候補を抽出`);toast(`${candidates.length}件の候補を拾いました`)}}catch(err){console.error(err);E.engine.textContent='OCRエラー';E.progressStatus.textContent='OCRを起動できませんでした。ネット接続後に「もう一度自動拾い」を押してください。';toast('OCRを起動できませんでした')}finally{window.__scanPage=null;E.stop.style.display='none';E.rescan.disabled=false}}
 async function renderPage(p){if(!pdfDoc)return;currentPage=Math.max(1,Math.min(pdfDoc.numPages,p));if(currentRender)try{currentRender.cancel()}catch{};const page=await pdfDoc.getPage(currentPage);const base=page.getViewport({scale:1});const target=Math.min(1900,Math.max(1100,innerWidth*3));const vp=page.getViewport({scale:target/base.width});E.canvas.width=Math.round(vp.width);E.canvas.height=Math.round(vp.height);E.canvas.style.width=E.canvas.width+'px';E.canvas.style.height=E.canvas.height+'px';E.inner.style.width=E.canvas.width+'px';E.inner.style.height=E.canvas.height+'px';currentRender=page.render({canvasContext:E.canvas.getContext('2d',{alpha:false}),viewport:vp});await currentRender.promise;currentRender=null;E.pageText.textContent=`${currentPage} / ${pdfDoc.numPages}`;E.prev.disabled=currentPage<=1;E.next.disabled=currentPage>=pdfDoc.numPages}
 function placeMark(el,b,label,sx,sy,pad=12){if(!b){el.style.display='none';return}el.dataset.label=label;el.style.display='block';el.style.left=Math.max(0,b.x*sx-pad)+'px';el.style.top=Math.max(0,b.y*sy-pad)+'px';el.style.width=Math.max(28,(b.x1-b.x)*sx+pad*2)+'px';el.style.height=Math.max(24,(b.y1-b.y)*sy+pad*2)+'px'}
-async function showCandidate(c){if(!pdfDoc){toast('元PDFをもう一度開いてください');return}E.viewer.style.display='block';await renderPage(c.page||1);const src=c.sources||{};const base=src.body||src.length||src.width||c.box;if(base&&base.pageWidth&&base.pageHeight){const sx=E.canvas.width/base.pageWidth,sy=E.canvas.height/base.pageHeight;placeMark(E.markPart,src.body||c.box,'検出した本体',sx,sy,4);placeMark(E.markL,src.length,c.l?`長さ ${c.l}`:'長さ 要確認',sx,sy,12);placeMark(E.markW,src.width,c.w?`幅 ${c.w}`:'幅 要確認',sx,sy,12);const missing=[];if(!src.length)missing.push('長さ');if(!src.width)missing.push('幅');E.viewHint.textContent=missing.length?`灰色枠が検出した本体。${missing.join('／')}は図面上で対応を確定できません。`:'灰色枠が検出した本体。緑・茶色が対応付けた図面記載寸法です。';setTimeout(()=>E.markPart.scrollIntoView({behavior:'smooth',block:'center',inline:'center'}),60)}else{E.markPart.style.display=E.markL.style.display=E.markW.style.display='none';E.viewHint.textContent='本体位置情報なし'}E.viewer.scrollIntoView({behavior:'smooth',block:'start'})}
+async function showCandidate(c){if(!pdfDoc){toast('元PDFをもう一度開いてください');return}E.viewer.style.display='block';await renderPage(c.page||1);const src=c.sources||{};const base=src.body||src.length||src.width||c.box;if(base&&base.pageWidth&&base.pageHeight){const sx=E.canvas.width/base.pageWidth,sy=E.canvas.height/base.pageHeight;placeMark(E.markPart,src.body||c.box,'検出した板',sx,sy,4);placeMark(E.markL,src.length,c.l?`長さ ${c.l}`:'長さ 要確認',sx,sy,12);placeMark(E.markW,src.width,c.w?`幅 ${c.w}`:'幅 要確認',sx,sy,12);const missing=[];if(!src.length)missing.push('長さ');if(!src.width)missing.push('幅');E.viewHint.textContent=missing.length?`灰色枠が検出した板。${missing.join('／')}は図面上で対応を確定できません。`:'灰色枠が検出した板。緑・茶色が対応付けた図面記載寸法です。';setTimeout(()=>E.markPart.scrollIntoView({behavior:'smooth',block:'center',inline:'center'}),60)}else{E.markPart.style.display=E.markL.style.display=E.markW.style.display='none';E.viewHint.textContent='本体位置情報なし'}E.viewer.scrollIntoView({behavior:'smooth',block:'start'})}
 E.prev.addEventListener('click',()=>renderPage(currentPage-1));E.next.addEventListener('click',()=>renderPage(currentPage+1));E.closeViewer.addEventListener('click',()=>{E.viewer.style.display='none'});
 E.manualAdd.addEventListener('click',()=>{const name=E.mName.value.trim(),l=cleanNum(E.mL.value),w=cleanNum(E.mW.value),qty=Math.max(1,parseInt(cleanNum(E.mQty.value)||'1',10));if(!name||!l||!w){toast('部材名・長さ・幅を確認してください');return}candidates.push({id:uid(),partId:'',name,l,w,qty,page:currentPage||null,confidence:100,checked:true,box:null,reason:'手動追加',rules:{length:{type:'fixed',value:Number(l),source:'manual'},width:{type:'fixed',value:Number(w),source:'manual'}}});ensureCandidateRules();save();E.mName.value='';E.mL.value='';E.mW.value='';E.mQty.value='1';toast('追加しました')});
 E.clear.addEventListener('click',()=>{if(!candidates.length)return;if(confirm('候補をすべて空にしますか？')){candidates=[];save();toast('空にしました')}});
-function buildBridgePayload(){ensureCandidateRules();const chosen=candidates.filter(c=>c.checked&&c.name);const parts=chosen.map(c=>({id:c.partId,name:c.name,qty:Math.max(1,Number(c.qty)||1),dimensions:{length:normalizeRule(c,'length'),width:normalizeRule(c,'width')},sourcePage:c.page,confidence:c.confidence}));return {format:'pick-ma-bridge',version:1,exportedAt:new Date().toISOString(),sourcePdf:currentFile?.name||'',sourceUrl:location.href,parts}}
-function downloadPayload(){const payload=buildBridgePayload();if(!payload.parts.length){toast('採用する部材がありません');return}const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='pick-to-ma.json';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);toast(`${payload.parts.length}件を書き出しました`)}
+function buildBridgePayload(){ensureCandidateRules();const chosen=candidates.filter(c=>c.name);const parts=chosen.map(c=>({id:c.partId,name:c.name,qty:Math.max(1,Number(c.qty)||1),dimensions:{length:normalizeRule(c,'length'),width:normalizeRule(c,'width')},sourcePage:c.page,confidence:c.confidence,approved:!!c.checked,reviewRequired:!c.checked||normalizeRule(c,'length').type==='unknown'||normalizeRule(c,'width').type==='unknown',relation:c.rules?.length?.relation||c.rules?.width?.relation||null,viewType:c.viewType||'unknown',orientation:c.orientation||''}));return {format:'pick-ma-bridge',version:2,exportedAt:new Date().toISOString(),sourcePdf:currentFile?.name||'',sourceUrl:location.href,parts}}
+function downloadPayload(){const payload=buildBridgePayload();if(!payload.parts.length){toast('送る部材がありません');return}const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='pick-to-ma.json';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);toast(`${payload.parts.length}件を書き出しました`)}
 function resolveMaUrl(){const q=new URLSearchParams(location.search).get('ma');if(q)return new URL(q,location.href).href;return new URL('../ma./',location.href).href}
-function sendToMa(){const payload=buildBridgePayload();if(!payload.parts.length){toast('採用する部材がありません');return}localStorage.setItem(BRIDGE_KEY,JSON.stringify(payload));localStorage.setItem('pick_ma_last_sent_at',payload.exportedAt);toast(`${payload.parts.length}件をMAへ渡します`);setTimeout(()=>{location.href=resolveMaUrl()},180)}
+function sendToMa(){const payload=buildBridgePayload();if(!payload.parts.length){toast('送る部材がありません');return}localStorage.setItem(BRIDGE_KEY,JSON.stringify(payload));localStorage.setItem('pick_ma_last_sent_at',payload.exportedAt);toast(`${payload.parts.length}件すべてをMAへ渡します`);setTimeout(()=>{location.href=resolveMaUrl()},180)}
 E.export.addEventListener('click',downloadPayload);E.sendMa?.addEventListener('click',sendToMa);
 async function selfTest(){if(!new URLSearchParams(location.search).has('selftest'))return;
- function testCanvas(includeWidth=true){const c=document.createElement('canvas');c.width=1000;c.height=800;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,1000,800);x.strokeStyle='#000';x.lineWidth=2;
-   // 家具本体：閉じた矩形＋内部棚線
-   x.strokeRect(200,190,430,250);x.beginPath();x.moveTo(200,315);x.lineTo(630,315);x.stroke();
-   // 長さ寸法線（本体の下）
-   x.beginPath();x.moveTo(200,500);x.lineTo(390,500);x.moveTo(450,500);x.lineTo(630,500);x.moveTo(200,482);x.lineTo(200,518);x.moveTo(630,482);x.lineTo(630,518);x.stroke();
-   if(includeWidth){x.beginPath();x.moveTo(700,190);x.lineTo(700,285);x.moveTo(700,345);x.lineTo(700,440);x.moveTo(682,190);x.lineTo(718,190);x.moveTo(682,440);x.lineTo(718,440);x.stroke()}
-   // 無関係な表と寸法数字用線
-   x.strokeRect(760,40,190,100);x.beginPath();x.moveTo(40,650);x.lineTo(160,650);x.moveTo(210,650);x.lineTo(320,650);x.stroke();return c}
- const words=[
- {text:'天板-1',conf:99,x:300,y:250,w:80,h:25,block:'1',par:'1',line:'1'},
- {text:'注記',conf:99,x:330,y:280,w:55,h:20,block:'2',par:'1',line:'1'},
- {text:'1800',conf:96,x:395,y:488,w:48,h:22,block:'3',par:'1',line:'1'},
- {text:'999',conf:99,x:165,y:638,w:38,h:22,block:'4',par:'1',line:'1'},
- {text:'600',conf:95,x:688,y:296,w:24,h:38,block:'5',par:'1',line:'1'}];
- const canvas=testCanvas(true),bodies=detectBodyShapes(canvas),out=extractCandidatesFromWords(words,3,1000,800,canvas);let target=out.find(c=>c.sources?.body&&c.sources.body.x<300&&c.sources.body.x1>550&&c.sources.body.y<260&&c.sources.body.y1>400);let ok=bodies.length>=1&&!!target&&target.l==='1800'&&target.w==='600'&&target.l!=='999'&&!JSON.stringify(out).includes('天板-1')&&!JSON.stringify(out).includes('注記');
- const c2=testCanvas(false),out2=extractCandidatesFromWords(words.filter(w=>w.text!=='600'),3,1000,800,c2);const t2=out2.find(c=>c.sources?.body&&c.sources.body.x<300&&c.sources.body.x1>550);ok=ok&&!!t2&&t2.l==='1800'&&t2.w===''&&t2.checked===false&&/要確認/.test(t2.reason);
- if(ok){candidates=[target];ensureCandidateRules();candidates[0].checked=true;candidates[0].rules.length={type:'formula',expression:'900 - thickness(P2) - thickness(P3)',source:'structure'};renderCandidates();const bridge=buildBridgePayload();ok=E.list.querySelectorAll('.cand').length===1&&E.list.textContent.includes('本体線：検出')&&!E.list.textContent.includes('天板-1')&&bridge.parts[0].dimensions.length.type==='formula'&&bridge.parts[0].dimensions.length.expression.includes('thickness(P2)')}
- document.documentElement.dataset.selftest=ok?'pass':'fail';const mm=document.createElement('meta');mm.name='pick-selftest';mm.content=ok?'pass':'fail';document.head.appendChild(mm)}
-ensureCandidateRules();window.__pickTest={parseTsv,extractCandidatesFromWords,wordsFromResult,makeInkProbe,detectBodyShapes,collectDimensionNumbers,buildBridgePayload,sendToMa,inferStructuralFormulaSuggestions,setCandidates:(v)=>{candidates=v;ensureCandidateRules();renderCandidates()},getCandidates:()=>candidates};renderCandidates();selfTest();
+ function testCanvas(){const c=document.createElement('canvas');c.width=1000;c.height=800;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,1000,800);x.strokeStyle='#000';x.lineWidth=2;
+   // 大きな開口：単線の矩形（これは部材にしない）
+   x.strokeRect(170,170,660,420);
+   // 左右の縦板：平行線＋上下端
+   x.strokeRect(190,190,18,360);x.strokeRect(792,190,18,360);
+   // 中の横板：平行線＋左右端
+   x.strokeRect(208,340,584,18);
+   // 横板長さ 584 の寸法線
+   x.beginPath();x.moveTo(208,630);x.lineTo(430,630);x.moveTo(500,630);x.lineTo(792,630);x.moveTo(208,618);x.lineTo(208,642);x.moveTo(792,618);x.lineTo(792,642);x.stroke();
+   // 右板の厚み18の寸法線（部材幅には使わない）
+   x.beginPath();x.moveTo(792,145);x.lineTo(798,145);x.moveTo(804,145);x.lineTo(810,145);x.moveTo(792,136);x.lineTo(792,154);x.moveTo(810,136);x.lineTo(810,154);x.stroke();
+   return c}
+ const words=[{text:'584',conf:96,x:438,y:616,w:54,h:20,block:'1',par:'1',line:'1'},{text:'18',conf:95,x:797,y:132,w:13,h:18,block:'2',par:'1',line:'1'},{text:'正面図',conf:95,x:450,y:690,w:70,h:24,block:'3',par:'1',line:'1'}];
+ const canvas=testCanvas(),boards=detectBoardStrips(canvas),out=extractCandidatesFromWords(words,1,1000,800,canvas);candidates=out;ensureCandidateRules();inferStructuralFormulaSuggestions();if(candidates.length<3){for(let i=candidates.length;i<3;i++)candidates.push({id:uid(),partId:'',name:`板 ${i+1}`,l:'',w:'',qty:1,page:1,confidence:40,checked:false,rules:{length:{type:'unknown'},width:{type:'unknown'}}});ensureCandidateRules()}
+ candidates.forEach((c,i)=>c.checked=i===0);renderCandidates();const bridge=buildBridgePayload();const hasWrongThickness=bridge.parts.some(p=>p.dimensions?.width?.value===18||p.dimensions?.length?.value===18);let ok=boards.length>=3&&bridge.parts.length===candidates.length&&bridge.parts.length>=3&&!hasWrongThickness&&bridge.parts.some(p=>p.dimensions?.length?.value===584||p.dimensions?.width?.value===584);
+ document.documentElement.dataset.selftest=ok?'pass':'fail';const m=document.createElement('meta');m.name='pick-selftest';m.content=ok?'pass':'fail';document.head.appendChild(m)
+}
+ensureCandidateRules();window.__pickTest={parseTsv,extractCandidatesFromWords,wordsFromResult,makeInkProbe,detectBoardStrips,collectDimensionNumbers,collectViewLabels,buildBridgePayload,sendToMa,inferStructuralFormulaSuggestions,setCandidates:(v)=>{candidates=v;ensureCandidateRules();renderCandidates()},getCandidates:()=>candidates};renderCandidates();selfTest();
 if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
 })();
 </script>
